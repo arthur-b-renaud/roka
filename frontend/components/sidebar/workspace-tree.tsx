@@ -4,16 +4,15 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { Button } from "@/components/ui/button";
-import { ChevronRight, FileText, Database, Image } from "lucide-react";
+import { ChevronRight, FileText, Database, Image, Table2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DbNode } from "@/lib/types/database";
 
 const nodeIcons: Record<string, React.ElementType> = {
   page: FileText,
   database: Database,
+  database_row: Table2,
   image: Image,
-  database_row: FileText,
 };
 
 interface WorkspaceTreeProps {
@@ -47,16 +46,23 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
 
   const Icon = nodeIcons[node.type] ?? FileText;
 
-  // Fetch children lazily
+  // For "database" nodes, show database_row children.
+  // For "page"/"database" nodes, show page/database sub-children.
+  const childTypes =
+    node.type === "database"
+      ? ["page", "database", "database_row"]
+      : ["page", "database"];
+
   const { data: children = [] } = useQuery<DbNode[]>({
-    queryKey: ["node-children", node.id],
+    queryKey: ["node-children", node.id, childTypes.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("nodes")
         .select("*")
         .eq("parent_id", node.id)
-        .in("type", ["page", "database"])
-        .order("sort_order", { ascending: true });
+        .in("type", childTypes)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return data as DbNode[];
     },

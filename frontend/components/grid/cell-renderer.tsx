@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
@@ -47,17 +47,21 @@ function TextCell({
   const [localVal, setLocalVal] = useState(value ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Sync from external
+  useEffect(() => {
+    if (!editing) setLocalVal(value ?? "");
+  }, [value, editing]);
+
   if (!editing) {
     return (
       <span
         className="block min-h-[1.5rem] cursor-text text-sm"
         onClick={() => {
-          setLocalVal(value ?? "");
           setEditing(true);
           setTimeout(() => inputRef.current?.focus(), 0);
         }}
       >
-        {value || <span className="text-muted-foreground">Empty</span>}
+        {value || <span className="text-muted-foreground/60 italic">Empty</span>}
       </span>
     );
   }
@@ -69,16 +73,15 @@ function TextCell({
       onChange={(e) => setLocalVal(e.target.value)}
       onBlur={() => {
         setEditing(false);
-        if (localVal !== value) onChange(localVal);
+        if (localVal !== (value ?? "")) onChange(localVal);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           setEditing(false);
-          if (localVal !== value) onChange(localVal);
+          if (localVal !== (value ?? "")) onChange(localVal);
         }
         if (e.key === "Escape") {
           setEditing(false);
-          setLocalVal(value ?? "");
         }
       }}
       className="h-7 text-sm"
@@ -97,16 +100,17 @@ function NumberCell({
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(String(value ?? ""));
 
+  useEffect(() => {
+    if (!editing) setLocalVal(String(value ?? ""));
+  }, [value, editing]);
+
   if (!editing) {
     return (
       <span
-        className="block min-h-[1.5rem] cursor-text text-sm"
-        onClick={() => {
-          setLocalVal(String(value ?? ""));
-          setEditing(true);
-        }}
+        className="block min-h-[1.5rem] cursor-text text-sm tabular-nums"
+        onClick={() => setEditing(true)}
       >
-        {value ?? <span className="text-muted-foreground">-</span>}
+        {value != null ? value : <span className="text-muted-foreground/60 italic">-</span>}
       </span>
     );
   }
@@ -127,12 +131,23 @@ function NumberCell({
           const num = parseFloat(localVal);
           if (!isNaN(num)) onChange(num);
         }
+        if (e.key === "Escape") setEditing(false);
       }}
       className="h-7 text-sm"
       autoFocus
     />
   );
 }
+
+const SELECT_COLORS = [
+  "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
+  "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+];
 
 function SelectCell({
   value,
@@ -145,67 +160,62 @@ function SelectCell({
 }) {
   const [open, setOpen] = useState(false);
 
-  const colorMap: Record<number, string> = {
-    0: "bg-blue-100 text-blue-800",
-    1: "bg-green-100 text-green-800",
-    2: "bg-yellow-100 text-yellow-800",
-    3: "bg-purple-100 text-purple-800",
-    4: "bg-red-100 text-red-800",
-  };
-
-  if (!open) {
-    return (
+  return (
+    <div className="relative">
       <div
         className="flex min-h-[1.5rem] cursor-pointer items-center"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen(!open)}
       >
         {value ? (
           <Badge
             variant="outline"
-            className={`${colorMap[options.indexOf(value) % 5] ?? ""} border-0 text-xs`}
+            className={`${SELECT_COLORS[options.indexOf(value) % SELECT_COLORS.length] ?? ""} border-0 text-xs font-medium`}
           >
             {value}
           </Badge>
         ) : (
-          <span className="text-sm text-muted-foreground">Select...</span>
+          <span className="text-sm text-muted-foreground/60 italic">Select...</span>
         )}
       </div>
-    );
-  }
 
-  return (
-    <div className="relative">
-      <div className="absolute z-10 mt-1 rounded-md border bg-popover p-1 shadow-md">
-        {options.map((opt, i) => (
-          <button
-            key={opt}
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1 text-sm hover:bg-accent"
-            onClick={() => {
-              onChange(opt);
-              setOpen(false);
-            }}
-          >
-            <Badge
-              variant="outline"
-              className={`${colorMap[i % 5] ?? ""} border-0 text-xs`}
-            >
-              {opt}
-            </Badge>
-          </button>
-        ))}
-        {value && (
-          <button
-            className="flex w-full items-center rounded-sm px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
-            onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}
-          >
-            Clear
-          </button>
-        )}
-      </div>
-      <div className="fixed inset-0" onClick={() => setOpen(false)} />
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-popover p-1 shadow-lg">
+            {options.map((opt, i) => (
+              <button
+                key={opt}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                onClick={() => {
+                  onChange(opt);
+                  setOpen(false);
+                }}
+              >
+                <Badge
+                  variant="outline"
+                  className={`${SELECT_COLORS[i % SELECT_COLORS.length] ?? ""} border-0 text-xs`}
+                >
+                  {opt}
+                </Badge>
+              </button>
+            ))}
+            {value && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent"
+                  onClick={() => {
+                    onChange("");
+                    setOpen(false);
+                  }}
+                >
+                  Clear
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -222,7 +232,7 @@ function DateCell({
       type="date"
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
-      className="h-7 w-36 text-sm"
+      className="h-7 w-40 text-sm"
     />
   );
 }
@@ -235,11 +245,13 @@ function CheckboxCell({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <input
-      type="checkbox"
-      checked={!!value}
-      onChange={(e) => onChange(e.target.checked)}
-      className="h-4 w-4 rounded border-gray-300"
-    />
+    <div className="flex min-h-[1.5rem] items-center">
+      <input
+        type="checkbox"
+        checked={!!value}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary"
+      />
+    </div>
   );
 }

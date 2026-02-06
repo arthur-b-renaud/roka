@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/editor/page-header";
 import { Breadcrumbs } from "@/components/editor/breadcrumbs";
 import { EditorErrorBoundary } from "@/components/editor/error-boundary";
 import { DatabaseView } from "@/components/grid/database-view";
+import { DatabaseRowPage } from "@/components/grid/database-row-page";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DbNode } from "@/lib/types/database";
 
@@ -52,12 +53,19 @@ export default function NodePage() {
   return (
     <div className="mx-auto max-w-4xl p-8">
       <Breadcrumbs nodeId={nodeId} />
-      <PageHeader node={node} />
       <EditorErrorBoundary>
         {node.type === "database" ? (
-          <DatabaseView key={node.id} node={node} />
+          <>
+            <PageHeader node={node} />
+            <DatabaseView key={node.id} node={node} />
+          </>
+        ) : node.type === "database_row" ? (
+          <DatabaseRowPage key={node.id} node={node} />
         ) : (
-          <PageEditor key={node.id} node={node} />
+          <>
+            <PageHeader node={node} />
+            <PageEditor key={node.id} node={node} />
+          </>
         )}
       </EditorErrorBoundary>
     </div>
