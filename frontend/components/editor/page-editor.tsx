@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { BlockNoteEditor } from "@blocknote/core";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import "@blocknote/mantine/style.css";
@@ -15,15 +13,16 @@ interface PageEditorProps {
 
 export function PageEditor({ node }: PageEditorProps) {
   const supabase = useSupabase();
-  const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const editor = useCreateBlockNote({
-    initialContent:
-      Array.isArray(node.content) && node.content.length > 0
-        ? (node.content as Parameters<typeof BlockNoteEditor.create>[0] extends { initialContent: infer T } ? T : never)
-        : undefined,
-  });
+  // node.content is BlockNote Block[] serialized as JSON
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const initialContent =
+    Array.isArray(node.content) && node.content.length > 0
+      ? (node.content as any[])
+      : undefined;
+
+  const editor = useCreateBlockNote({ initialContent });
 
   const handleChange = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -31,7 +30,7 @@ export function PageEditor({ node }: PageEditorProps) {
       const blocks = editor.document;
       await supabase
         .from("nodes")
-        .update({ content: blocks as unknown as Record<string, unknown> })
+        .update({ content: JSON.parse(JSON.stringify(blocks)) })
         .eq("id", node.id);
     }, 1000);
   }, [editor, supabase, node.id]);

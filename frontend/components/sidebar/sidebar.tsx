@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSupabase } from "@/components/providers/supabase-provider";
+import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,13 +23,7 @@ export function Sidebar() {
   const router = useRouter();
   const supabase = useSupabase();
   const queryClient = useQueryClient();
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-    });
-  }, [supabase]);
+  const { userId } = useCurrentUser();
 
   // Fetch root-level pages (parent_id IS NULL, type = page)
   const { data: pages = [] } = useQuery<DbNode[]>({

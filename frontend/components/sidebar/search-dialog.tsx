@@ -43,12 +43,9 @@ export function SearchDialog() {
 
     const timer = setTimeout(async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
       const { data, error } = await supabase.rpc("search_nodes", {
         search_query: query,
-        user_id: user.id,
         result_limit: 20,
       });
 

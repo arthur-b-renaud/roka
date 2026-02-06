@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
@@ -40,18 +40,21 @@ export function KeyboardShortcuts() {
     },
   });
 
+  // Stable ref to avoid re-registering listener every render
+  const createPageRef = useRef(createPage);
+  createPageRef.current = createPage;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd+N: New page
       if ((e.metaKey || e.ctrlKey) && e.key === "n") {
         e.preventDefault();
-        createPage.mutate();
+        createPageRef.current.mutate();
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [createPage]);
+  }, []);
 
   return null;
 }

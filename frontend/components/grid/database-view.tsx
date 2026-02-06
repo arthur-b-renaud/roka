@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -57,30 +57,37 @@ export function DatabaseView({ node }: DatabaseViewProps) {
     [dbDef]
   );
 
-  // Update a cell value
-  const updateCell = useMutation({
-    mutationFn: async ({
-      rowId,
-      key,
-      value,
-    }: {
-      rowId: string;
-      key: string;
-      value: unknown;
-    }) => {
-      // Get current properties
-      const row = rows.find((r) => r.id === rowId);
-      const properties = { ...(row?.properties ?? {}), [key]: value };
+  // Stable cell-update function (avoids re-render loops)
+  const handleCellUpdate = useCallback(
+    async (rowId: string, key: string, value: unknown) => {
+      // Fetch current row fresh to merge properties
+      const { data: currentRow } = await supabase
+        .from("nodes")
+        .select("properties")
+        .eq("id", rowId)
+        .single();
+      const properties = { ...(currentRow?.properties as Record<string, unknown> ?? {}), [key]: value };
       const { error } = await supabase
         .from("nodes")
         .update({ properties })
         .eq("id", rowId);
       if (error) throw error;
-    },
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["db-rows", node.id] });
     },
-  });
+    [supabase, queryClient, node.id]
+  );
+
+  const handleTitleUpdate = useCallback(
+    async (rowId: string, title: string) => {
+      const { error } = await supabase
+        .from("nodes")
+        .update({ title })
+        .eq("id", rowId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["db-rows", node.id] });
+    },
+    [supabase, queryClient, node.id]
+  );
 
   // Add new row
   const addRow = useMutation({
@@ -102,7 +109,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
     },
   });
 
-  // Build TanStack columns from schema
+  // Build TanStack columns from schema (stable deps)
   const columns: ColumnDef<DbNode>[] = useMemo(() => {
     const titleCol: ColumnDef<DbNode> = {
       id: "title",
@@ -112,15 +119,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
         <CellRenderer
           type="text"
           value={row.original.title}
-          onChange={(val) => {
-            supabase
-              .from("nodes")
-              .update({ title: val as string })
-              .eq("id", row.original.id)
-              .then(() =>
-                queryClient.invalidateQueries({ queryKey: ["db-rows", node.id] })
-              );
-          }}
+          onChange={(val) => handleTitleUpdate(row.original.id, val as string)}
         />
       ),
     };
@@ -135,15 +134,13 @@ export function DatabaseView({ node }: DatabaseViewProps) {
           type={col.type}
           value={(row.original.properties as Record<string, unknown>)[col.key]}
           options={col.options}
-          onChange={(val) =>
-            updateCell.mutate({ rowId: row.original.id, key: col.key, value: val })
-          }
+          onChange={(val) => handleCellUpdate(row.original.id, col.key, val)}
         />
       ),
     }));
 
     return [titleCol, ...schemaCols];
-  }, [schemaColumns, supabase, queryClient, node.id, updateCell]);
+  }, [schemaColumns, handleTitleUpdate, handleCellUpdate]);
 
   const table = useReactTable({
     data: rows,

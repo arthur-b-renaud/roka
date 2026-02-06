@@ -1,5 +1,8 @@
 version: "3.8"
 
+# Reads .env from the same directory as this compose file (infra/.env)
+# Copy infra/.env.example to infra/.env and configure before running.
+
 services:
   # ──────────────────────────────────────────────
   # Supabase Stack

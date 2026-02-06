@@ -7,9 +7,9 @@ This is the sidecar bridge:
 """
 
 import asyncio
+import json
 import logging
 import traceback
-from datetime import datetime, timezone
 
 from app.config import settings
 from app.db import get_pool
@@ -85,7 +85,7 @@ async def poll_agent_tasks() -> None:
                         completed_at = now(),
                         updated_at = now()
                     WHERE id = $1
-                """, task_id, __import__("json").dumps(result or {}))
+                """, task_id, json.dumps(result or {}))
 
                 logger.info("Task %s completed", task_id)
 

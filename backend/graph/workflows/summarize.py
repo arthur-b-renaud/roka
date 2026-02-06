@@ -7,6 +7,7 @@ Proves full pipeline: UI trigger -> DB row -> agent pickup -> LLM call -> DB wri
 
 import json
 import logging
+import uuid
 from typing import Any, TypedDict
 
 import litellm
@@ -31,7 +32,7 @@ async def fetch_node_content(state: SummarizeState) -> dict[str, Any]:
     pool = get_pool()
     row = await pool.fetchrow(
         "SELECT title, content, search_text FROM nodes WHERE id = $1",
-        __import__("uuid").UUID(state["node_id"]),
+        uuid.UUID(state["node_id"]),
     )
     if row is None:
         return {"content_text": ""}
@@ -72,15 +73,15 @@ async def write_summary(state: SummarizeState) -> dict[str, Any]:
         SET properties = properties || jsonb_build_object('ai_summary', $2::text),
             updated_at = now()
         WHERE id = $1
-    """, __import__("uuid").UUID(state["node_id"]), state["summary"])
+    """, uuid.UUID(state["node_id"]), state["summary"])
 
     # Audit log
     await pool.execute("""
         INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
         VALUES ($1, 'nodes', $2, 'UPDATE', $3::jsonb)
     """,
-        __import__("uuid").UUID(state["task_id"]),
-        __import__("uuid").UUID(state["node_id"]),
+        uuid.UUID(state["task_id"]),
+        uuid.UUID(state["node_id"]),
         json.dumps({"ai_summary": state["summary"]}),
     )
 

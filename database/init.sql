@@ -77,18 +77,45 @@ CREATE TABLE nodes (
     sort_order    INTEGER NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    -- Generated column: extract text for full-text search
-    search_text   TEXT GENERATED ALWAYS AS (
-        title || ' ' || COALESCE(
-            (SELECT string_agg(value::text, ' ')
-             FROM jsonb_array_elements_text(
-                 CASE WHEN jsonb_typeof(content) = 'array' THEN content ELSE '[]'::jsonb END
-             )),
-            ''
-        )
-    ) STORED
+    -- Populated by trigger: extract text for full-text search
+    search_text   TEXT NOT NULL DEFAULT ''
 );
+
+-- Trigger: rebuild search_text on INSERT or UPDATE of title/content
+CREATE OR REPLACE FUNCTION nodes_build_search_text()
+RETURNS TRIGGER AS $$
+DECLARE
+    content_text TEXT := '';
+    block JSONB;
+BEGIN
+    -- Extract text from BlockNote JSON content array
+    IF jsonb_typeof(NEW.content) = 'array' THEN
+        FOR block IN SELECT * FROM jsonb_array_elements(NEW.content)
+        LOOP
+            -- BlockNote blocks have nested content[].text fields
+            IF block ? 'content' AND jsonb_typeof(block->'content') = 'array' THEN
+                content_text := content_text || ' ' || COALESCE(
+                    (SELECT string_agg(elem->>'text', ' ')
+                     FROM jsonb_array_elements(block->'content') AS elem
+                     WHERE elem ? 'text'),
+                    ''
+                );
+            END IF;
+            -- Also check for plain text values
+            IF block ? 'text' THEN
+                content_text := content_text || ' ' || (block->>'text');
+            END IF;
+        END LOOP;
+    END IF;
+
+    NEW.search_text := COALESCE(NEW.title, '') || ' ' || TRIM(content_text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_nodes_search_text
+    BEFORE INSERT OR UPDATE OF title, content ON nodes
+    FOR EACH ROW EXECUTE FUNCTION nodes_build_search_text();
 
 -- Full-text search index
 CREATE INDEX idx_nodes_search_fts ON nodes USING GIN (to_tsvector('english', search_text));
@@ -290,11 +317,11 @@ CREATE POLICY writes_all ON writes FOR ALL
 
 -- ============================================================
 -- RPC: Full-text search across nodes
+-- Uses auth.uid() internally so callers cannot search other users' data.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION search_nodes(
     search_query TEXT,
-    user_id UUID,
     result_limit INTEGER DEFAULT 20
 )
 RETURNS TABLE (
@@ -305,6 +332,8 @@ RETURNS TABLE (
     snippet TEXT,
     rank REAL
 ) AS $$
+DECLARE
+    current_user_id UUID := auth.uid();
 BEGIN
     RETURN QUERY
     SELECT
@@ -316,7 +345,7 @@ BEGIN
             'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20') AS snippet,
         ts_rank(to_tsvector('english', n.search_text), plainto_tsquery('english', search_query)) AS rank
     FROM nodes n
-    WHERE n.owner_id = user_id
+    WHERE n.owner_id = current_user_id
       AND to_tsvector('english', n.search_text) @@ plainto_tsquery('english', search_query)
     ORDER BY rank DESC
     LIMIT result_limit;
@@ -326,7 +355,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Fuzzy search fallback (trigram)
 CREATE OR REPLACE FUNCTION search_nodes_fuzzy(
     search_query TEXT,
-    user_id UUID,
     result_limit INTEGER DEFAULT 20
 )
 RETURNS TABLE (
@@ -336,6 +364,8 @@ RETURNS TABLE (
     parent_id UUID,
     similarity REAL
 ) AS $$
+DECLARE
+    current_user_id UUID := auth.uid();
 BEGIN
     RETURN QUERY
     SELECT
@@ -345,7 +375,7 @@ BEGIN
         n.parent_id,
         similarity(n.search_text, search_query) AS similarity
     FROM nodes n
-    WHERE n.owner_id = user_id
+    WHERE n.owner_id = current_user_id
       AND n.search_text % search_query
     ORDER BY similarity DESC
     LIMIT result_limit;

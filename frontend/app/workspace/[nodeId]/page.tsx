@@ -55,9 +55,9 @@ export default function NodePage() {
       <PageHeader node={node} />
       <EditorErrorBoundary>
         {node.type === "database" ? (
-          <DatabaseView node={node} />
+          <DatabaseView key={node.id} node={node} />
         ) : (
-          <PageEditor node={node} />
+          <PageEditor key={node.id} node={node} />
         )}
       </EditorErrorBoundary>
     </div>

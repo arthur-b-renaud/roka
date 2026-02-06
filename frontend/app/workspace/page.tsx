@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
+import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useRecentPages, usePinnedPages, useCreateAgentTask } from "@/lib/queries/nodes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,13 +24,7 @@ import type { DbNode, DbAgentTask } from "@/lib/types/database";
 export default function WorkspacePage() {
   const router = useRouter();
   const supabase = useSupabase();
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null);
-    });
-  }, [supabase]);
+  const { userId } = useCurrentUser();
 
   const { data: recentPages = [], isLoading: loadingRecent } = useRecentPages(userId);
   const { data: pinnedPages = [] } = usePinnedPages(userId);
