@@ -1,162 +1,144 @@
-# roka
+# Roka -- Sovereign Agentic Workspace
 
-Sovereign Agentic OS (Project Roka)
+A self-hosted knowledge workspace combining Notion-like editing with LangGraph agentic workflows. Built on Supabase + Next.js + FastAPI, deployable anywhere via Docker Compose.
 
-A self-hosted operating system where State, Interface, and Logic share a single brain.
+## Architecture
 
-1. The Vision
+```
+User -> Next.js (ANON key, RLS) -> Supabase Kong -> PostgreSQL
+                                                      ^
+                                                      |
+                    FastAPI + LangGraph (SERVICE_ROLE) -+-> LiteLLM -> OpenAI/Ollama/OpenRouter
+```
 
-Current productivity tools are fragmented: your database is in Notion, your files are in Drive, and your AI agents are trapped in chat windows.
+**Sidecar Pattern**: Frontend and Backend don't communicate via HTTP. They share the database. Frontend writes `agent_tasks` rows; Backend polls and executes them.
 
-Sovereign Agentic OS unifies these three domains into a single, self-hosted state machine:
+## Quick Start
 
-State (The Database): A single source of truth (PostgreSQL) that stores business data, personal knowledge, and vector embeddings side-by-side.
+```bash
+# 1. Clone
+git clone https://github.com/arthur-b-renaud/roka.git
+cd roka
 
-Interface (The Face): A "Headless" Notion-like interface where UI components are rendered dynamically based on database schemas.
-
-Logic (The Agent): A first-class "Ghost User" that operates on the database asynchronously—triaging email, synthesizing knowledge, and maintaining system hygiene 24/7.
-
-Core Philosophy:
-
-Sovereignty: Zero dependency on proprietary SaaS for critical path operations.
-
-Data-First: The database schema is the API. The UI and Agents are merely views and modifiers of that schema.
-
-Passive Intelligence: Agents act on data events (Webhooks/Triggers), not just user chat requests.
-
-2. The "Trinity" Architecture
-
-The system is designed as a modular monolith deployed via Docker Compose, wrapping a standard Supabase stack.
-
-🏛️ Infrastructure (The Body)
-
-Runtime: Docker Compose.
-
-Base Layer: Official Supabase images (PostgreSQL 15+, GoTrue, Kong, Storage).
-
-Strategy: "Sidecar" architecture. We do not fork Supabase; we run alongside it within the same internal network.
-
-🧠 Backend (The Brain)
-
-Runtime: Python 3.11.
-
-Framework: FastAPI + LangGraph.
-
-Role: The orchestration engine. It connects directly to the database to perform vector search, RAG, and state management. It handles "messy" ingestion (parsing PDFs, emails) that Node.js struggles with.
-
-🖥️ Frontend (The Face)
-
-Runtime: Next.js 14 (App Router).
-
-Components: BlockNote (Notion-like Editor) + TanStack Table (Headless Databases).
-
-Role: A unified interface for interacting with the "Hybrid Schema" (Structured Entities + Unstructured Notes).
-
-3. Technology Stack
-
-Domain
-
-Technology
-
-Purpose
-
-Database
-
-PostgreSQL 15+
-
-The "God Store." Handles Relational, JSONB, and Vector data.
-
-Extensions
-
-pgvector, pg_trgm
-
-Semantic search and fuzzy text matching.
-
-Backend
-
-Python / FastAPI
-
-High-performance API for Agents and Ingestion.
-
-Agent
-
-LangGraph
-
-Stateful, cyclic agent orchestration (The "Cognitive Graph").
-
-Frontend
-
-Next.js / React
-
-Server-side rendering and dynamic routing.
-
-Editor
-
-BlockNote
-
-Block-based rich text editing (Prosemirror wrapper).
-
-Auth
-
-Supabase Auth
-
-secure JWT management (GoTrue).
-
-4. Directory Structure
-
-/
-├── .cursorrules             # AI Coding Guidelines & Context
-├── infra/                   # Infrastructure Configuration
-│   ├── docker-compose.yml   # Main composition (Supabase + App)
-│   └── .env.example         # Connection strings
-├── backend/                 # Python Agent Service
-│   ├── app/                 # FastAPI Application
-│   └── graph/               # LangGraph Workflow Definitions
-├── frontend/                # Next.js Application
-│   ├── app/                 # App Router
-│   └── components/          # BlockNote & TanStack Components
-└── database/                # Schema Definitions
-    └── init.sql             # The Hybrid Schema (Fixed + Flexible)
-
-
-5. Quick Start
-
-Prerequisites
-
-Docker & Docker Compose
-
-Git
-
-Deployment
-
-Bootstrap Infrastructure:
-
-# Clone the repo
-git clone [https://github.com/your-username/sovereign-os.git](https://github.com/your-username/sovereign-os.git)
-cd sovereign-os
-
-# Setup Environment
+# 2. Configure
 cp infra/.env.example infra/.env
-# Edit .env with your LLM API Keys (OpenAI/Anthropic)
+# Edit infra/.env -- set your OPENAI_API_KEY and passwords
 
-
-Launch the Stack:
-
+# 3. Launch
 docker compose -f infra/docker-compose.yml up -d
 
+# 4. Initialize database (first time only)
+# Open Supabase Studio at http://localhost:8000
+# Run database/init.sql in the SQL editor
 
-Initialize the Brain:
+# 5. Access
+# Frontend:  http://localhost:3000
+# Studio:    http://localhost:8000
+# API:       http://localhost:8080
+# Backend:   http://localhost:8100
+```
 
-Access Supabase Studio at http://localhost:8000.
+## Technology Stack
 
-Navigate to the SQL Editor.
+| Layer      | Technology                          |
+| ---------- | ----------------------------------- |
+| Frontend   | Next.js 14, React, Tailwind, Shadcn |
+| Editor     | BlockNote                           |
+| Data Grid  | TanStack Table                      |
+| State      | React Query + Supabase Client       |
+| Backend    | FastAPI, Python 3.11                |
+| Agent      | LangGraph                           |
+| LLM Proxy  | LiteLLM                             |
+| Database   | PostgreSQL 15 + pgvector + pg_trgm  |
+| Auth       | Supabase Auth (GoTrue)              |
+| Infra      | Docker Compose                      |
 
-Run the contents of database/init.sql to create the Hybrid Schema.
+## Directory Structure
 
-Access:
+```
+/
+├── infra/                    # Docker Compose + config
+│   ├── docker-compose.yml    # Main composition
+│   ├── docker-compose.prod.yml  # Production overrides
+│   ├── .env.example          # All configuration
+│   ├── kong.yml              # API gateway config
+│   ├── litellm-config.yaml   # LLM routing
+│   └── backup/               # Backup/restore scripts
+├── database/
+│   └── init.sql              # Schema: tables, RLS, indexes, RPCs
+├── frontend/                 # Next.js workspace UI
+│   ├── app/                  # App Router pages
+│   │   ├── auth/             # Login/signup
+│   │   └── workspace/        # Main workspace
+│   ├── components/           # UI components
+│   │   ├── editor/           # BlockNote editor
+│   │   ├── grid/             # TanStack Table database views
+│   │   ├── sidebar/          # Tree + search
+│   │   └── ui/               # Shadcn primitives
+│   └── lib/                  # Supabase clients, types, hooks
+└── backend/                  # FastAPI agent service
+    ├── app/                  # FastAPI application
+    │   ├── routes/           # Webhook endpoints
+    │   └── services/         # Task runner (poller)
+    └── graph/
+        └── workflows/        # LangGraph workflows
+            ├── summarize.py  # Content summarization
+            └── triage.py     # Smart classify + extract
+```
 
-Frontend: http://localhost:3000
+## Features
 
-API: http://localhost:8080
+### Workspace (Frontend)
+- **Page editor**: BlockNote rich text with debounced auto-save
+- **Database views**: TanStack Table with dynamic columns from schema config
+- **Sidebar tree**: Recursive page tree with lazy-loaded children
+- **Global search**: Full-text search (Cmd+K) via PostgreSQL tsvector + trigram
+- **Auth**: Supabase Auth with login/signup and protected routes
+- **Dashboard**: Recent pages, pinned pages, agent task status
 
-Studio: http://localhost:8000
+### Agent Workflows (Backend)
+- **Summarize**: Fetch content -> LLM summarize -> write back to node properties
+- **Smart Triage**: Classify -> extract entities/dates -> create linked child nodes
+- **Task poller**: Background loop that atomically claims and executes pending tasks
+- **Webhook ingestion**: External event intake with entity resolution
+
+### Keyboard Shortcuts
+| Shortcut | Action     |
+| -------- | ---------- |
+| Cmd+K    | Search     |
+| Cmd+N    | New page   |
+
+## Sovereignty Levers
+
+All choices are environment variables:
+
+- **LLM**: `LITELLM_MODEL=openai/gpt-4o` or `ollama/llama3` or `openrouter/anthropic/claude-3.5-sonnet`
+- **Storage**: Supabase Storage (local or S3-compatible)
+- **Database**: Full PostgreSQL access + Supabase Studio dashboard
+- **Backup**: `pg_dump` script with optional S3 sync
+
+## Production Deployment
+
+```bash
+# Build and run with production overrides (no Studio, built images, resource limits)
+docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --build
+```
+
+## Backup & Restore
+
+```bash
+# Backup
+POSTGRES_PASSWORD=your-password ./infra/backup/backup.sh
+
+# Restore
+POSTGRES_PASSWORD=your-password ./infra/backup/restore.sh /tmp/roka-backups/roka_20260206_030000.sql.gz
+```
+
+## Not in v1 (Planned for v2)
+
+- Live collaboration (Yjs/Hocuspocus)
+- Agent visualizer (React Flow)
+- Vector/semantic search (pgvector embeddings)
+- Board/kanban views
+- File upload/attachment UI
+- Mobile responsive layout

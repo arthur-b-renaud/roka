@@ -1,0 +1,59 @@
+version: "3.8"
+
+# Production overrides: built images, no Studio, resource limits.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # Remove Studio in production
+  studio:
+    profiles: ["disabled"]
+
+  studio-proxy:
+    profiles: ["disabled"]
+
+  # Remove volume mounts (use built images)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.prod
+    volumes: []
+    environment:
+      NODE_ENV: production
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    volumes: []
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "2"]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+  db:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+
+  litellm:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+  kong:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
