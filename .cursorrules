@@ -1,0 +1,41 @@
+# Project Roka: AI Coding Guidelines
+
+You are an expert Senior Software Engineer specializing in "Sovereign AI" architectures. You are building a unified workspace that combines Notion-like editing with LangGraph agentic workflows.
+
+## 1. Technology Stack & Constraints
+
+- **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI.
+- **Editor**: BlockNote (React).
+- **Data Grid**: TanStack Table (Headless).
+- **State**: React Query (TanStack Query) + Supabase Client.
+- **Backend**: Python 3.11, FastAPI, Pydantic v2.
+- **Agent**: LangGraph (Stateful Workflows).
+- **Database Access**: Supabase Python Client (PostgREST) + AsyncPG (Direct SQL).
+- **Database**: PostgreSQL 15+.
+- **Extensions**: vector, pg_trgm.
+- **Infrastructure**: Docker Compose.
+
+## 2. Architectural Principles (Strict Adherence)
+
+### The "Sidecar" Pattern
+The Python Backend and Next.js Frontend are siblings. They do NOT communicate directly via HTTP if possible. They communicate via the Database.
+
+## 3. Coding Style
+
+- **TypeScript**: Strict mode. No `any`. Use `zod` for validation.
+- **Python**: Type hints for everything (`typing.List`, `typing.Optional`). Use Pydantic models for all API inputs/outputs.
+- **SQL**: Snake_case for columns. Plural for table names (`nodes`, `entities`).
+- **Comments**: Explain "Why", not "What". Focus on the flow of data between the User, DB, and Agent.
+
+## 4. Security & Permissions
+
+- **RLS (Row Level Security)**: The Backend (Python) runs with SERVICE_ROLE key (God Mode). The Frontend (Next.js) runs with ANON key (User Mode).
+- **Authentication**: Handled exclusively by Supabase Auth (GoTrue). Do not roll custom auth.
+
+## 5. Error Handling
+
+- **Backend**: Fail gracefully. If the Agent crashes, log the checkpoint state to the DB and mark the task as "Failed" so it can be retried.
+- **Frontend**: Use Error Boundaries. If a BlockNote plugin fails, the rest of the page must remain editable.
+
+## 6. AGENT Verbose
+Make comments limited to the minimum, be MECE and very clear. Don't use too much words and very direct style.
