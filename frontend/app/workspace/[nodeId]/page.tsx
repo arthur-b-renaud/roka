@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
 import { PageEditor } from "@/components/editor/page-editor";
 import { PageHeader } from "@/components/editor/page-header";
+import { Breadcrumbs } from "@/components/editor/breadcrumbs";
+import { EditorErrorBoundary } from "@/components/editor/error-boundary";
 import { DatabaseView } from "@/components/grid/database-view";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DbNode } from "@/lib/types/database";
@@ -31,6 +32,7 @@ export default function NodePage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl space-y-4 p-8">
+        <Skeleton className="h-4 w-48" />
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-6 w-full" />
         <Skeleton className="h-6 w-3/4" />
@@ -49,12 +51,15 @@ export default function NodePage() {
 
   return (
     <div className="mx-auto max-w-4xl p-8">
+      <Breadcrumbs nodeId={nodeId} />
       <PageHeader node={node} />
-      {node.type === "database" ? (
-        <DatabaseView node={node} />
-      ) : (
-        <PageEditor node={node} />
-      )}
+      <EditorErrorBoundary>
+        {node.type === "database" ? (
+          <DatabaseView node={node} />
+        ) : (
+          <PageEditor node={node} />
+        )}
+      </EditorErrorBoundary>
     </div>
   );
 }

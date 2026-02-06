@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { SearchDialog } from "@/components/sidebar/search-dialog";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 
 export default function WorkspaceLayout({
   children,
@@ -13,6 +14,7 @@ export default function WorkspaceLayout({
         {children}
       </main>
       <SearchDialog />
+      <KeyboardShortcuts />
     </div>
   );
 }
