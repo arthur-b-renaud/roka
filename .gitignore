@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node / Frontend
+node_modules/
+.next/
+frontend/.next/
+frontend/node_modules/
+
+# Infra secrets
+infra/.env
+
+# Docker volumes
+docker-data/

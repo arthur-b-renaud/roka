@@ -4,49 +4,49 @@ overview: Lean 6-phase plan to ship a Notion-like knowledge workspace with agent
 todos:
   - id: phase-0-infra
     content: "Phase 0: Docker Compose with Supabase stack + LiteLLM + app services, .env.example, Dockerfiles"
-    status: pending
+    status: completed
   - id: phase-1-schema
     content: "Phase 1: database/init.sql -- all tables, enums, RLS policies, full-text search indexes, agent_tasks table"
-    status: pending
+    status: completed
   - id: phase-2a-bootstrap
     content: "Phase 2a: Next.js project bootstrap -- package.json, Tailwind, Shadcn, Supabase client, providers"
-    status: pending
+    status: completed
   - id: phase-2b-auth
     content: "Phase 2b: Auth pages (login/signup) + middleware for protected routes"
-    status: pending
+    status: completed
   - id: phase-2c-workspace
     content: "Phase 2c: Workspace layout -- sidebar tree, Cmd+K search dialog"
-    status: pending
+    status: completed
   - id: phase-2d-editor
     content: "Phase 2d: BlockNote page editor with auto-save to nodes.content JSONB"
-    status: pending
+    status: completed
   - id: phase-2e-database
     content: "Phase 2e: Database views -- TanStack Table with dynamic columns from schema_config, inline editing"
-    status: pending
+    status: completed
   - id: phase-2f-search
     content: "Phase 2f: Global full-text search via Supabase RPC"
-    status: pending
+    status: completed
   - id: phase-2g-homepage
     content: "Phase 2g: Homepage/dashboard with recent pages + agent task triggers"
-    status: pending
+    status: completed
   - id: phase-3a-backend
     content: "Phase 3a: FastAPI bootstrap -- app, config, DB clients, Dockerfile"
-    status: pending
+    status: completed
   - id: phase-3b-poller
     content: "Phase 3b: Agent task poller -- polls agent_tasks table, runs LangGraph workflows"
-    status: pending
+    status: completed
   - id: phase-3c-summarize
     content: "Phase 3c: First LangGraph workflow -- Summarize (proves full UI->DB->Agent->LLM->DB->UI pipeline)"
-    status: pending
+    status: completed
   - id: phase-3d-triage
     content: "Phase 3d: Second workflow -- Smart Triage (classify, extract, create linked nodes)"
-    status: pending
+    status: completed
   - id: phase-4-polish
     content: "Phase 4: Search polish, workspace settings, multi-user, keyboard shortcuts, error boundaries"
-    status: pending
+    status: completed
   - id: phase-5-deploy
     content: "Phase 5: Production compose, Fly.io config, backup/restore scripts, ARM64 support"
-    status: pending
+    status: completed
 isProject: false
 ---
 
