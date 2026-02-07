@@ -87,7 +87,7 @@ export function SearchDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="top-[20%] translate-y-0 sm:max-w-lg">
+      <DialogContent className="top-[20%] translate-y-0 sm:max-w-lg" aria-label="Search pages">
         <DialogHeader>
           <DialogTitle className="sr-only">Search</DialogTitle>
         </DialogHeader>
@@ -98,8 +98,16 @@ export function SearchDialog() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
+            aria-label="Search query"
+            role="combobox"
+            aria-expanded={results.length > 0}
           />
-          <div className="max-h-80 overflow-auto">
+          {results.length > 0 && (
+            <div className="sr-only" aria-live="polite">
+              {results.length} result{results.length !== 1 ? "s" : ""} found
+            </div>
+          )}
+          <div className="max-h-80 overflow-auto" role="listbox">
             {loading && (
               <p className="px-2 py-4 text-center text-sm text-muted-foreground">
                 Searching...
@@ -113,6 +121,8 @@ export function SearchDialog() {
             {results.map((result, index) => (
               <button
                 key={result.id}
+                role="option"
+                aria-selected={index === selectedIndex}
                 onClick={() => navigateToResult(result)}
                 className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
                   index === selectedIndex
@@ -128,10 +138,18 @@ export function SearchDialog() {
                 <div className="flex flex-col items-start text-left">
                   <span className="font-medium">{result.title || "Untitled"}</span>
                   {result.snippet && (
-                    <span
-                      className="line-clamp-1 text-xs text-muted-foreground"
-                      dangerouslySetInnerHTML={{ __html: result.snippet }}
-                    />
+                    <span className="line-clamp-1 text-xs text-muted-foreground">
+                      {result.snippet.split(/(<mark>.*?<\/mark>)/g).map((part, i) => {
+                        if (part.startsWith("<mark>") && part.endsWith("</mark>")) {
+                          return (
+                            <span key={i} className="font-medium text-foreground">
+                              {part.replace(/<\/?mark>/g, "")}
+                            </span>
+                          );
+                        }
+                        return <span key={i}>{part}</span>;
+                      })}
+                    </span>
                   )}
                 </div>
               </button>

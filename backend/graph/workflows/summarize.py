@@ -13,6 +13,7 @@ from typing import Any, TypedDict
 import litellm
 from langgraph.graph import StateGraph, END
 
+from app.config import settings
 from app.db import get_pool
 from app.services.llm_settings import get_llm_config
 
@@ -37,7 +38,6 @@ async def fetch_node_content(state: SummarizeState) -> dict[str, Any]:
     if row is None:
         return {"content_text": ""}
 
-    # Use search_text (generated column) as the best text representation
     text = row["search_text"] or row["title"] or ""
     return {"content_text": text}
 
@@ -49,7 +49,6 @@ async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
         return {"summary": "No content to summarize."}
 
     llm = await get_llm_config()
-    # Check already done in entry point, but good for safety
     if not llm.is_configured:
         return {"summary": "LLM not configured."}
 
@@ -57,12 +56,13 @@ async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
         model=llm.model_string,
         api_key=llm.api_key,
         api_base=llm.api_base if llm.api_base else None,
+        timeout=settings.llm_timeout_seconds,
         messages=[
             {
                 "role": "system",
                 "content": "You are a concise summarizer. Summarize the following content in 2-3 sentences.",
             },
-            {"role": "user", "content": text[:4000]},
+            {"role": "user", "content": text[:settings.llm_max_input_chars]},
         ],
     )
 
@@ -71,24 +71,25 @@ async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
 
 
 async def write_summary(state: SummarizeState) -> dict[str, Any]:
-    """Step 3: Write summary back to node properties."""
+    """Step 3: Write summary + audit log inside a single transaction."""
     pool = get_pool()
-    await pool.execute("""
-        UPDATE nodes
-        SET properties = properties || jsonb_build_object('ai_summary', $2::text),
-            updated_at = now()
-        WHERE id = $1
-    """, uuid.UUID(state["node_id"]), state["summary"])
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute("""
+                UPDATE nodes
+                SET properties = properties || jsonb_build_object('ai_summary', $2::text),
+                    updated_at = now()
+                WHERE id = $1
+            """, uuid.UUID(state["node_id"]), state["summary"])
 
-    # Audit log
-    await pool.execute("""
-        INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
-        VALUES ($1, 'nodes', $2, 'UPDATE', $3::jsonb)
-    """,
-        uuid.UUID(state["task_id"]),
-        uuid.UUID(state["node_id"]),
-        json.dumps({"ai_summary": state["summary"]}),
-    )
+            await conn.execute("""
+                INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
+                VALUES ($1, 'nodes', $2, 'UPDATE', $3::jsonb)
+            """,
+                uuid.UUID(state["task_id"]),
+                uuid.UUID(state["node_id"]),
+                json.dumps({"ai_summary": state["summary"]}),
+            )
 
     return {}
 

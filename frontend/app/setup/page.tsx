@@ -60,8 +60,8 @@ export default function SetupPage() {
       setAuthError("Passwords do not match");
       return;
     }
-    if (password.length < 6) {
-      setAuthError("Password must be at least 6 characters");
+    if (password.length < 8) {
+      setAuthError("Password must be at least 8 characters");
       return;
     }
 
@@ -181,7 +181,7 @@ export default function SetupPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="At least 6 characters"
+                placeholder="At least 8 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

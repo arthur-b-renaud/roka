@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/toast";
 import { WorkspaceTree } from "./workspace-tree";
 import {
   Plus,
@@ -24,6 +25,7 @@ export function Sidebar() {
   const supabase = useSupabase();
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
+  const { toast } = useToast();
 
   // Fetch root-level pages (parent_id IS NULL, type = page)
   const { data: pages = [] } = useQuery<DbNode[]>({
@@ -66,6 +68,9 @@ export function Sidebar() {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
       router.push(`/workspace/${node.id}`);
     },
+    onError: (err) => {
+      toast(err instanceof Error ? err.message : "Failed to create page", "error");
+    },
   });
 
   // Create new database
@@ -102,6 +107,9 @@ export function Sidebar() {
     onSuccess: (node) => {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
       router.push(`/workspace/${node.id}`);
+    },
+    onError: (err) => {
+      toast(err instanceof Error ? err.message : "Failed to create database", "error");
     },
   });
 

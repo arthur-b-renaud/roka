@@ -46,7 +46,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4" aria-label="Sign in">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -56,6 +56,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
           <div className="space-y-2">
@@ -67,11 +68,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              aria-describedby={error ? "login-error" : undefined}
             />
           </div>
 
           {error && (
-            <p className="text-sm text-destructive">{error}</p>
+            <p id="login-error" role="alert" className="text-sm text-destructive">{error}</p>
           )}
 
           <Button type="submit" className="w-full" disabled={loading}>

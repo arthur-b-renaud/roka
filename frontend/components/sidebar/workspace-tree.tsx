@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
@@ -29,7 +29,7 @@ export function WorkspaceTree({ pages }: WorkspaceTreeProps) {
   }
 
   return (
-    <div className="space-y-0.5">
+    <div role="tree" className="space-y-0.5">
       {pages.map((page) => (
         <TreeNode key={page.id} node={page} depth={0} />
       ))}
@@ -37,7 +37,7 @@ export function WorkspaceTree({ pages }: WorkspaceTreeProps) {
   );
 }
 
-function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
+const TreeNode = memo(function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = useSupabase();
@@ -46,8 +46,6 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
 
   const Icon = nodeIcons[node.type] ?? FileText;
 
-  // For "database" nodes, show database_row children.
-  // For "page"/"database" nodes, show page/database sub-children.
   const childTypes =
     node.type === "database"
       ? ["page", "database", "database_row"]
@@ -67,10 +65,14 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
       return data as DbNode[];
     },
     enabled: expanded,
+    staleTime: 30_000,
   });
 
+  const toggleExpand = useCallback(() => setExpanded((prev) => !prev), []);
+  const navigate = useCallback(() => router.push(`/workspace/${node.id}`), [router, node.id]);
+
   return (
-    <div>
+    <div role="treeitem" aria-expanded={expanded}>
       <div
         className={cn(
           "group flex items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors hover:bg-accent",
@@ -79,7 +81,8 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={toggleExpand}
+          aria-label={expanded ? "Collapse" : "Expand"}
           className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted"
         >
           <ChevronRight
@@ -90,7 +93,7 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
           />
         </button>
         <button
-          onClick={() => router.push(`/workspace/${node.id}`)}
+          onClick={navigate}
           className="flex flex-1 items-center gap-2 truncate"
         >
           {node.icon ? (
@@ -103,7 +106,7 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
       </div>
 
       {expanded && children.length > 0 && (
-        <div>
+        <div role="group">
           {children.map((child) => (
             <TreeNode key={child.id} node={child} depth={depth + 1} />
           ))}
@@ -111,4 +114,4 @@ function TreeNode({ node, depth }: { node: DbNode; depth: number }) {
       )}
     </div>
   );
-}
+});

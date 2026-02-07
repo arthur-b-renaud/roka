@@ -9,6 +9,17 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================================
+-- Restricted backend role (Principle of Least Privilege)
+-- The backend service uses this instead of superuser.
+-- ============================================================
+
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'roka_backend') THEN
+        CREATE ROLE roka_backend LOGIN;
+    END IF;
+END $$;
+
+-- ============================================================
 -- Zone A: Fixed Core  (Identity + Signal)
 -- ============================================================
 
@@ -74,7 +85,7 @@ CREATE TABLE nodes (
     content       JSONB NOT NULL DEFAULT '[]'::jsonb,  -- BlockNote editor state
     properties    JSONB NOT NULL DEFAULT '{}'::jsonb,  -- user-defined fields
     is_pinned     BOOLEAN NOT NULL DEFAULT false,
-    sort_order    INTEGER NOT NULL DEFAULT 0,
+    sort_order    INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     -- Populated by trigger: extract text for full-text search
@@ -108,7 +119,7 @@ BEGIN
         END LOOP;
     END IF;
 
-    NEW.search_text := COALESCE(NEW.title, '') || ' ' || TRIM(content_text);
+    NEW.search_text := LEFT(COALESCE(NEW.title, '') || ' ' || TRIM(content_text), 10000);
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -140,7 +151,8 @@ CREATE TABLE edges (
     type        TEXT NOT NULL DEFAULT 'link',
     metadata    JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(source_id, target_id, type)
+    UNIQUE(source_id, target_id, type),
+    CONSTRAINT edges_no_self_loop CHECK (source_id != target_id)
 );
 
 CREATE INDEX idx_edges_source ON edges (source_id);
@@ -184,12 +196,17 @@ CREATE TABLE agent_tasks (
     node_id       UUID REFERENCES nodes(id) ON DELETE SET NULL,
     started_at    TIMESTAMPTZ,
     completed_at  TIMESTAMPTZ,
+    heartbeat_at  TIMESTAMPTZ,                          -- updated periodically by worker
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_agent_tasks_status ON agent_tasks (status);
 CREATE INDEX idx_agent_tasks_owner ON agent_tasks (owner_id);
+-- Partial index for the poller query (pending tasks by creation order)
+CREATE INDEX idx_agent_tasks_pending ON agent_tasks (created_at ASC) WHERE status = 'pending';
+-- Partial index for stale running task cleanup
+CREATE INDEX idx_agent_tasks_running ON agent_tasks (heartbeat_at ASC) WHERE status = 'running';
 
 -- Checkpoints: LangGraph serialized state
 CREATE TABLE checkpoints (
@@ -210,7 +227,7 @@ CREATE TABLE writes (
     task_id       UUID REFERENCES agent_tasks(id) ON DELETE SET NULL,
     table_name    TEXT NOT NULL,
     row_id        UUID NOT NULL,
-    operation     TEXT NOT NULL,  -- INSERT, UPDATE, DELETE
+    operation     TEXT NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
     old_data      JSONB,
     new_data      JSONB,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -237,6 +254,22 @@ INSERT INTO app_settings (key, value, is_secret) VALUES
     ('llm_api_key', '', true),
     ('llm_api_base', '', false),
     ('llm_configured', 'false', false);
+
+-- ============================================================
+-- LISTEN/NOTIFY: wake the backend poller on new tasks
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION notify_new_task()
+RETURNS TRIGGER AS $$
+BEGIN
+    PERFORM pg_notify('new_task', NEW.id::text);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_agent_tasks_notify
+    AFTER INSERT ON agent_tasks
+    FOR EACH ROW EXECUTE FUNCTION notify_new_task();
 
 -- ============================================================
 -- Updated_at trigger function
@@ -288,11 +321,14 @@ CREATE POLICY nodes_update ON nodes FOR UPDATE
 CREATE POLICY nodes_delete ON nodes FOR DELETE
     USING (auth.uid() = owner_id);
 
--- Edges: accessible if user owns the source node
+-- Edges: accessible if user owns both source and target nodes
 CREATE POLICY edges_select ON edges FOR SELECT
     USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
 CREATE POLICY edges_insert ON edges FOR INSERT
-    WITH CHECK (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
+    WITH CHECK (
+        EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid())
+        AND EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.target_id AND nodes.owner_id = auth.uid())
+    );
 CREATE POLICY edges_update ON edges FOR UPDATE
     USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
 CREATE POLICY edges_delete ON edges FOR DELETE
@@ -435,3 +471,34 @@ BEGIN
     LIMIT result_limit;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
+-- Grant permissions to roka_backend role
+-- Only the tables/operations the backend actually needs.
+-- ============================================================
+
+GRANT USAGE ON SCHEMA public TO roka_backend;
+
+-- agent_tasks: claim, update status, read
+GRANT SELECT, UPDATE ON agent_tasks TO roka_backend;
+
+-- nodes: read for workflows, update properties, insert children (triage)
+GRANT SELECT, INSERT, UPDATE ON nodes TO roka_backend;
+
+-- writes: insert audit log entries
+GRANT INSERT ON writes TO roka_backend;
+
+-- edges: create links from triage workflow
+GRANT SELECT, INSERT ON edges TO roka_backend;
+
+-- entities: resolve/create from webhooks
+GRANT SELECT, INSERT ON entities TO roka_backend;
+
+-- communications: insert from webhooks
+GRANT INSERT ON communications TO roka_backend;
+
+-- app_settings: read LLM config
+GRANT SELECT ON app_settings TO roka_backend;
+
+-- checkpoints: save/load workflow state
+GRANT SELECT, INSERT, UPDATE ON checkpoints TO roka_backend;

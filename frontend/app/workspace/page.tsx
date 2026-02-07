@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
@@ -26,7 +27,10 @@ import {
   GitBranch,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import type { DbNode, DbAgentTask } from "@/lib/types/database";
+import { dbAgentTaskSchema, type DbNode, type DbAgentTask } from "@/lib/types/database";
+import { z } from "zod";
+
+const agentTasksArraySchema = z.array(dbAgentTaskSchema);
 
 export default function WorkspacePage() {
   const router = useRouter();
@@ -37,7 +41,7 @@ export default function WorkspacePage() {
   const { data: pinnedPages = [] } = usePinnedPages(userId);
   const createAgentTask = useCreateAgentTask();
 
-  // Fetch agent tasks
+  // Fetch agent tasks with Supabase Realtime subscription
   const { data: agentTasks = [] } = useQuery<DbAgentTask[]>({
     queryKey: ["agent-tasks", userId],
     queryFn: async () => {
@@ -49,19 +53,19 @@ export default function WorkspacePage() {
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
-      return data as DbAgentTask[];
+      return agentTasksArraySchema.parse(data);
     },
     enabled: !!userId,
-    refetchInterval: 5000, // poll for updates
+    refetchInterval: 10_000, // light fallback; realtime handles most updates
   });
 
-  const statusColors: Record<string, string> = {
+  const statusColors: Record<string, string> = useMemo(() => ({
     pending: "bg-yellow-100 text-yellow-800",
     running: "bg-blue-100 text-blue-800",
     completed: "bg-green-100 text-green-800",
     failed: "bg-red-100 text-red-800",
     cancelled: "bg-gray-100 text-gray-800",
-  };
+  }), []);
 
   const { llmConfigured } = useSetupComplete();
 
@@ -217,12 +221,13 @@ export default function WorkspacePage() {
   );
 }
 
-function PageCard({ node, onClick }: { node: DbNode; onClick: () => void }) {
+const PageCard = memo(function PageCard({ node, onClick }: { node: DbNode; onClick: () => void }) {
   const Icon = node.type === "database" ? Database : FileText;
 
   return (
     <button
       onClick={onClick}
+      aria-label={`Open ${node.title || "Untitled"}`}
       className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-accent/50"
     >
       <div className="flex items-center gap-2">
@@ -240,4 +245,4 @@ function PageCard({ node, onClick }: { node: DbNode; onClick: () => void }) {
       </span>
     </button>
   );
-}
+});

@@ -1,5 +1,7 @@
 """Webhook ingestion -- the only HTTP endpoint for external events."""
 
+import secrets
+
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -28,7 +30,9 @@ async def ingest_webhook(
     Parse, persist to communications, optionally create agent_task.
     """
     if settings.webhook_secret:
-        if not x_roka_webhook_secret or x_roka_webhook_secret != settings.webhook_secret:
+        if not x_roka_webhook_secret or not secrets.compare_digest(
+            x_roka_webhook_secret, settings.webhook_secret
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid webhook secret",

@@ -10,11 +10,12 @@ import { EditorErrorBoundary } from "@/components/editor/error-boundary";
 import { DatabaseView } from "@/components/grid/database-view";
 import { DatabaseRowPage } from "@/components/grid/database-row-page";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { DbNode } from "@/lib/types/database";
+import { dbNodeSchema, uuidSchema, type DbNode } from "@/lib/types/database";
 
 export default function NodePage() {
   const params = useParams();
-  const nodeId = params.nodeId as string;
+  const rawNodeId = params.nodeId as string;
+  const nodeId = uuidSchema.safeParse(rawNodeId).success ? rawNodeId : "";
   const supabase = useSupabase();
 
   const { data: node, isLoading, error } = useQuery<DbNode>({
@@ -26,8 +27,9 @@ export default function NodePage() {
         .eq("id", nodeId)
         .single();
       if (error) throw error;
-      return data as DbNode;
+      return dbNodeSchema.parse(data);
     },
+    enabled: !!nodeId,
   });
 
   if (isLoading) {
