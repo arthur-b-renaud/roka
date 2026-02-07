@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # LLM fallback (used only when DB has no llm config)
     litellm_model: str = "openai/gpt-4o"
 
+    # Webhook auth (optional). If set, requests must include X-Roka-Webhook-Secret
+    webhook_secret: str = ""
+
     # Polling
     task_poll_interval_seconds: int = 5
 

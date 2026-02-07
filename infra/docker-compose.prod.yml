@@ -1,9 +1,30 @@
 version: "3.8"
 
-# Production overrides: built images, no Studio, resource limits.
+# Production overrides: built images, Caddy reverse proxy, no Studio, resource limits.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
+  # ── Caddy reverse proxy (HTTPS + routing) ──────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - kong
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
   # Remove Studio in production
   studio:
     profiles: ["disabled"]
@@ -11,7 +32,10 @@ services:
   studio-proxy:
     profiles: ["disabled"]
 
-  # Remove volume mounts (use built images)
+  # Caddy is the public entry point. Base compose still binds frontend:3000,
+  # kong:8080, db:5432, backend:8100 to the host -- the install script
+  # configures UFW to only allow 22/80/443 so those are not reachable
+  # from the internet. For local `make prod` usage they remain accessible.
   frontend:
     build:
       context: ../frontend
@@ -50,3 +74,7 @@ services:
         limits:
           memory: 256M
           cpus: "0.25"
+
+volumes:
+  caddy-data:
+  caddy-config:

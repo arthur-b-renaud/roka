@@ -4,6 +4,7 @@ import { useCallback, useRef } from "react";
 import { useSupabase } from "@/components/providers/supabase-provider";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
+import type { Block } from "@blocknote/core";
 import "@blocknote/mantine/style.css";
 import type { DbNode } from "@/lib/types/database";
 
@@ -16,10 +17,9 @@ export function PageEditor({ node }: PageEditorProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // node.content is BlockNote Block[] serialized as JSON
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const initialContent =
     Array.isArray(node.content) && node.content.length > 0
-      ? (node.content as any[])
+      ? (node.content as Block[])
       : undefined;
 
   const editor = useCreateBlockNote({ initialContent });

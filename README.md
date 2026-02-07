@@ -24,13 +24,10 @@ User -> Next.js (ANON key, RLS) -> Supabase Kong -> PostgreSQL
 git clone https://github.com/arthur-b-renaud/roka.git
 cd roka
 
-# 2. Setup (zero-config -- generates all secrets automatically)
-cd infra && ./setup.sh
+# 2. Launch (automatically runs setup if needed)
+make up
 
-# 3. Launch
-docker compose up -d
-
-# 4. Open http://localhost:3000
+# 3. Open http://localhost:3000
 # The setup wizard will guide you through:
 #   - Creating your account
 #   - Configuring your LLM provider (OpenAI / Ollama / OpenRouter)
@@ -101,6 +98,7 @@ docker compose up -d
 - **Smart Triage**: Classify -> extract entities/dates -> create linked child nodes
 - **Task poller**: Background loop that atomically claims and executes pending tasks
 - **Webhook ingestion**: External event intake with entity resolution
+- **Webhook auth**: If `WEBHOOK_SECRET` is set, requests must include `X-Roka-Webhook-Secret`
 - **Graceful degradation**: Agent features disabled until LLM is configured
 
 ### Keyboard Shortcuts
@@ -123,13 +121,27 @@ Other sovereignty controls:
 - **Database**: Full PostgreSQL access + Supabase Studio dashboard
 - **Backup**: `pg_dump` script with optional S3 sync
 
-## Production Deployment
+## Deploy to a VPS
+
+One command to deploy on any Ubuntu/Debian VPS. Installs Docker if needed, sets up HTTPS via Caddy.
+
+```bash
+# With a domain (auto-HTTPS via Let's Encrypt)
+curl -sSL https://raw.githubusercontent.com/arthur-b-renaud/roka/main/install.sh | sudo bash -s -- --domain roka.example.com
+
+# Without a domain (auto-detects public IP, HTTP only)
+curl -sSL https://raw.githubusercontent.com/arthur-b-renaud/roka/main/install.sh | sudo bash
+```
+
+**Requirements**: Ubuntu 22.04+ or Debian 12+ VPS, 2 GB RAM / 2 vCPU minimum. Point your domain's DNS A record to the server IP before running with `--domain`. The script configures UFW to only allow ports 22, 80, and 443.
+
+The script clones to `/opt/roka` by default (override with `--dir /your/path`).
+
+## Local Production Build
 
 ```bash
 # Build and run with production overrides (no Studio, built images, resource limits)
-cd infra
-./setup.sh
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+make prod
 ```
 
 ## Backup & Restore

@@ -38,20 +38,6 @@ Node 1: Classify. (LLM: "Is this spam, a task, or a notification?")
 
 Node 2: Extract. (NER: Extract Dates, Deadlines, Entities).
 
-Node 3: Rag. (Vector Search: Find related Nodes or Entities).
+Node 3: Synthesize. (LLM: Generate summary or suggested reply).
 
-Node 4: Synthesize. (LLM: Generate summary or suggested reply).
-
-Node 5: Act. (DB: Create a Node of type 'task', or update Entity metadata).
-
-3. The Vector Engine
-
-Role: Semantic Search provider.
-
-Tech: langchain-postgres vector store wrapper.
-
-Operations:
-
-upsert_node(text): Chunk and embed content when a Node is saved.
-
-query(text): Hybrid search (Keyword + Vector) for RAG.
+Node 4: Act. (DB: Create a Node of type 'task', or update Entity metadata).

@@ -4,13 +4,13 @@ Core Technology
 
 Framework: Next.js 14 (App Router)
 
-State Management: React Query (Server State) + Zustand (Client State).
+State Management: React Query (Server State) + React local state.
 
 Data Fetching: Supabase Client (RLS-enabled).
 
 Key Components
 
-1. The Polymorphic Editor (<BlockNoteWrapper />)
+1. The Editor (<PageEditor />)
 
 Responsibility: Rendering and editing nodes.content.
 
@@ -18,11 +18,7 @@ Features:
 
 Slash Menu: Inserts blocks.
 
-Mention Plugin: Triggers @ search against entities table.
-
-AI Plugin: Highlights text -> Sends to Backend -> Streams diff back.
-
-2. The Headless Database (<SmartGrid />)
+2. The Headless Database (<DatabaseView />)
 
 Responsibility: Rendering nodes that are children of a Database Node.
 
@@ -38,18 +34,12 @@ Bind Cell Inputs to nodes.properties JSONB.
 
 Render specific UI cells (Select, Date, Person) based on type.
 
-3. The Agent Observer (<GraphVisualizer />)
+3. Global Search (<SearchDialog />)
 
-Responsibility: Visualizing the Agent's thought process.
-
-Tech: React Flow (XYFlow).
+Responsibility: Command palette and full-text search.
 
 Logic:
 
-Fetch execution history from checkpoints.
+Invoke search_nodes RPC with the user's query.
 
-Map steps to Graph Nodes.
-
-Highlight the active path.
-
-Show Input/Output state in a side panel.
+Navigate directly to node IDs from results.

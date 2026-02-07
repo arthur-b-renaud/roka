@@ -80,7 +80,6 @@ graph TB
             Kong[Kong_API_Gateway]
         end
 
-        LiteLLM["LiteLLM Proxy"]
         Backend["FastAPI + LangGraph"]
         Frontend["Next.js 14"]
     end
@@ -91,8 +90,7 @@ graph TB
     Kong --> Auth
     Kong --> Storage
     Backend -->|"SERVICE_ROLE key"| PG
-    Backend --> LiteLLM
-    LiteLLM -->|"env config"| OpenAI_OR_Ollama_OR_OpenRouter
+    Backend -->|"litellm lib"| OpenAI_OR_Ollama_OR_OpenRouter
 ```
 
 
@@ -101,11 +99,11 @@ graph TB
 
 ---
 
-## Sovereignty Levers (Environment Variables)
+## Sovereignty Levers (Environment Variables + DB Settings)
 
-All "choice" points are env vars in a single `.env` file:
+Primary LLM settings live in `app_settings` (provider/model/key). Environment variables are only a fallback:
 
-- **LLM**: `LITELLM_MODEL=openai/gpt-4o` or `ollama/llama3` or `openrouter/anthropic/claude-3.5-sonnet`
+- **LLM fallback**: `LITELLM_MODEL=openai/gpt-4o` or `ollama/llama3` or `openrouter/anthropic/claude-3.5-sonnet`
 - **Storage**: Supabase Storage backend configured via `STORAGE_BACKEND=s3` with `S3_ENDPOINT=http://minio:9000` (MinIO) or any S3-compatible endpoint
 - **Database**: Supabase wraps PG -- the user gets both raw PG access and the Supabase dashboard
 - **Backup**: `pg_dump` cron job + S3 sync to MinIO/external bucket
@@ -120,11 +118,9 @@ All "choice" points are env vars in a single `.env` file:
 
 - `infra/docker-compose.yml` -- services:
   - Supabase stack (use [supabase/docker](https://github.com/supabase/supabase/tree/master/docker) as reference): `db`, `auth`, `rest`, `realtime`, `storage`, `studio`, `kong`, `meta`
-  - `litellm` -- LiteLLM proxy container, configured via env vars for provider/model
-  - `backend` -- Python 3.11, mounts `./backend`
+  - `backend` -- Python 3.11, mounts `./backend` (uses litellm python lib directly)
   - `frontend` -- Node 20, mounts `./frontend`
-- `infra/.env.example` -- all config: PG credentials, JWT secrets, Supabase keys, LiteLLM model config, S3/MinIO endpoints
-- `infra/litellm-config.yaml` -- LiteLLM model routing config
+- `infra/.env.example` -- all config: PG credentials, JWT secrets, Supabase keys, S3/MinIO endpoints
 - Update `.gitignore` -- add `node_modules/`, `.next/`, `infra/.env`
 
 **Ports exposed:**

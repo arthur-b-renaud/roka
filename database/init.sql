@@ -329,8 +329,8 @@ CREATE POLICY tasks_select ON agent_tasks FOR SELECT
     USING (auth.uid() = owner_id);
 CREATE POLICY tasks_insert ON agent_tasks FOR INSERT
     WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY tasks_update ON agent_tasks FOR UPDATE
-    USING (auth.uid() = owner_id);
+CREATE POLICY tasks_update_service ON agent_tasks FOR UPDATE
+    USING (auth.role() = 'service_role');
 
 -- Checkpoints & writes: service_role only (agent internal)
 CREATE POLICY checkpoints_all ON checkpoints FOR ALL
@@ -346,9 +346,26 @@ CREATE POLICY app_settings_anon_read ON app_settings FOR SELECT
 CREATE POLICY app_settings_auth_read ON app_settings FOR SELECT
     USING (auth.role() = 'authenticated' AND NOT is_secret);
 CREATE POLICY app_settings_auth_update ON app_settings FOR UPDATE
-    USING (auth.role() = 'authenticated');
+    USING (
+        auth.role() = 'authenticated'
+        AND key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+    )
+    WITH CHECK (
+        key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+        AND (
+            (key = 'llm_api_key' AND is_secret = true)
+            OR (key <> 'llm_api_key' AND is_secret = false)
+        )
+    );
 CREATE POLICY app_settings_auth_insert ON app_settings FOR INSERT
-    WITH CHECK (auth.role() = 'authenticated');
+    WITH CHECK (
+        auth.role() = 'authenticated'
+        AND key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+        AND (
+            (key = 'llm_api_key' AND is_secret = true)
+            OR (key <> 'llm_api_key' AND is_secret = false)
+        )
+    );
 CREATE POLICY app_settings_service_all ON app_settings FOR ALL
     USING (auth.role() = 'service_role');
 

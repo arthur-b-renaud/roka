@@ -213,8 +213,9 @@ frontend/.next/
 frontend/node_modules/
 !frontend/lib/
 
-# Infra secrets
+# Infra secrets & generated config
 infra/.env
+infra/Caddyfile
 
 # Docker volumes
 docker-data/

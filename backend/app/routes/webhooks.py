@@ -1,9 +1,10 @@
 """Webhook ingestion -- the only HTTP endpoint for external events."""
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Header, HTTPException, status
+from pydantic import BaseModel, Field
 from typing import Optional
 from app.db import get_supabase
+from app.config import settings
 
 router = APIRouter()
 
@@ -14,15 +15,25 @@ class WebhookPayload(BaseModel):
     from_email: Optional[str] = None
     subject: Optional[str] = None
     content_text: Optional[str] = None
-    raw_payload: dict = {}
+    raw_payload: dict = Field(default_factory=dict)
 
 
 @router.post("/ingest")
-async def ingest_webhook(payload: WebhookPayload):
+async def ingest_webhook(
+    payload: WebhookPayload,
+    x_roka_webhook_secret: Optional[str] = Header(default=None, alias="X-Roka-Webhook-Secret"),
+):
     """
     Receive external event (email, Slack, etc).
     Parse, persist to communications, optionally create agent_task.
     """
+    if settings.webhook_secret:
+        if not x_roka_webhook_secret or x_roka_webhook_secret != settings.webhook_secret:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid webhook secret",
+            )
+
     sb = get_supabase()
 
     # Resolve entity by email if provided
