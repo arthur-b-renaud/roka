@@ -4,48 +4,72 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71.4% 4.1%;
+    --background: 40 20% 98%;
+    --foreground: 30 6% 17%;
     --card: 0 0% 100%;
-    --card-foreground: 224 71.4% 4.1%;
+    --card-foreground: 30 6% 17%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 71.4% 4.1%;
-    --primary: 220.9 39.3% 11%;
-    --primary-foreground: 210 20% 98%;
-    --secondary: 220 14.3% 95.9%;
-    --secondary-foreground: 220.9 39.3% 11%;
-    --muted: 220 14.3% 95.9%;
-    --muted-foreground: 220 8.9% 46.1%;
-    --accent: 220 14.3% 95.9%;
-    --accent-foreground: 220.9 39.3% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 224 71.4% 4.1%;
-    --radius: 0.5rem;
+    --popover-foreground: 30 6% 17%;
+    --primary: 30 6% 17%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 30 10% 94%;
+    --secondary-foreground: 30 6% 17%;
+    --muted: 30 10% 94%;
+    --muted-foreground: 30 4% 45%;
+    --accent: 30 10% 94%;
+    --accent-foreground: 30 6% 17%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 8% 88%;
+    --input: 30 8% 88%;
+    --ring: 30 6% 17%;
+    --radius: 0.6rem;
   }
 
   .dark {
-    --background: 224 71.4% 4.1%;
-    --foreground: 210 20% 98%;
-    --card: 224 71.4% 4.1%;
-    --card-foreground: 210 20% 98%;
-    --popover: 224 71.4% 4.1%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 210 20% 98%;
-    --primary-foreground: 220.9 39.3% 11%;
-    --secondary: 215 27.9% 16.9%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 27.9% 16.9%;
-    --muted-foreground: 217.9 10.6% 64.9%;
-    --accent: 215 27.9% 16.9%;
-    --accent-foreground: 210 20% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 20% 98%;
-    --border: 215 27.9% 16.9%;
-    --input: 215 27.9% 16.9%;
-    --ring: 216 12.2% 83.9%;
+    --background: 220 20% 7%;
+    --foreground: 0 0% 92%;
+    --card: 220 20% 9%;
+    --card-foreground: 0 0% 92%;
+    --popover: 220 20% 9%;
+    --popover-foreground: 0 0% 92%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 12% 16%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 220 12% 16%;
+    --muted-foreground: 220 8% 65%;
+    --accent: 220 12% 16%;
+    --accent-foreground: 0 0% 92%;
+    --destructive: 0 60% 35%;
+    --destructive-foreground: 0 0% 92%;
+    --border: 220 12% 18%;
+    --input: 220 12% 18%;
+    --ring: 220 10% 80%;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: 220 20% 7%;
+    --foreground: 0 0% 92%;
+    --card: 220 20% 9%;
+    --card-foreground: 0 0% 92%;
+    --popover: 220 20% 9%;
+    --popover-foreground: 0 0% 92%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 12% 16%;
+    --secondary-foreground: 0 0% 92%;
+    --muted: 220 12% 16%;
+    --muted-foreground: 220 8% 65%;
+    --accent: 220 12% 16%;
+    --accent-foreground: 0 0% 92%;
+    --destructive: 0 60% 35%;
+    --destructive-foreground: 0 0% 92%;
+    --border: 220 12% 18%;
+    --input: 220 12% 18%;
+    --ring: 220 10% 80%;
   }
 }
 
@@ -53,7 +77,14 @@
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
+  html {
+    color-scheme: light dark;
   }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+::selection {
+  background: hsl(var(--accent));
 }
