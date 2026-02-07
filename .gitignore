@@ -211,6 +211,7 @@ node_modules/
 .next/
 frontend/.next/
 frontend/node_modules/
+!frontend/lib/
 
 # Infra secrets
 infra/.env

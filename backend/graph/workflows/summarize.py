@@ -13,8 +13,8 @@ from typing import Any, TypedDict
 import litellm
 from langgraph.graph import StateGraph, END
 
-from app.config import settings
 from app.db import get_pool
+from app.services.llm_settings import get_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,20 @@ async def fetch_node_content(state: SummarizeState) -> dict[str, Any]:
 
 
 async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
-    """Step 2: Call LLM via LiteLLM to summarize."""
+    """Step 2: Call LLM directly via litellm python library."""
     text = state.get("content_text", "")
     if not text.strip():
         return {"summary": "No content to summarize."}
 
+    llm = await get_llm_config()
+    # Check already done in entry point, but good for safety
+    if not llm.is_configured:
+        return {"summary": "LLM not configured."}
+
     response = await litellm.acompletion(
-        model=settings.litellm_model,
+        model=llm.model_string,
+        api_key=llm.api_key,
+        api_base=llm.api_base if llm.api_base else None,
         messages=[
             {
                 "role": "system",
@@ -57,8 +64,6 @@ async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
             },
             {"role": "user", "content": text[:4000]},
         ],
-        api_base=settings.litellm_url,
-        api_key=settings.litellm_master_key,
     )
 
     summary = response.choices[0].message.content or "Could not generate summary."
@@ -114,6 +119,10 @@ async def run_summarize_workflow(
         node_id = task_input.get("node_id", "")
     if not node_id:
         return {"error": "No node_id provided"}
+
+    llm = await get_llm_config()
+    if not llm.is_configured:
+        return {"error": "LLM not configured. Go to Settings to add your API key."}
 
     graph = build_summarize_graph()
     app = graph.compile()

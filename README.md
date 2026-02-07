@@ -8,10 +8,14 @@ A self-hosted knowledge workspace combining Notion-like editing with LangGraph a
 User -> Next.js (ANON key, RLS) -> Supabase Kong -> PostgreSQL
                                                       ^
                                                       |
-                    FastAPI + LangGraph (SERVICE_ROLE) -+-> LiteLLM -> OpenAI/Ollama/OpenRouter
+                    FastAPI + LangGraph (SERVICE_ROLE) -+-> litellm lib -> OpenAI/Ollama/OpenRouter
+                                                      |
+                                          app_settings (LLM config in DB)
 ```
 
 **Sidecar Pattern**: Frontend and Backend don't communicate via HTTP. They share the database. Frontend writes `agent_tasks` rows; Backend polls and executes them.
+
+**LLM config lives in the database**: provider, model, and API key are stored in the `app_settings` table and configurable from the UI. No env vars needed for LLM setup.
 
 ## Quick Start
 
@@ -20,22 +24,16 @@ User -> Next.js (ANON key, RLS) -> Supabase Kong -> PostgreSQL
 git clone https://github.com/arthur-b-renaud/roka.git
 cd roka
 
-# 2. Configure
-cp infra/.env.example infra/.env
-# Edit infra/.env -- set your OPENAI_API_KEY and passwords
+# 2. Setup (zero-config -- generates all secrets automatically)
+cd infra && ./setup.sh
 
 # 3. Launch
-docker compose -f infra/docker-compose.yml up -d
+docker compose up -d
 
-# 4. Initialize database (first time only)
-# Open Supabase Studio at http://localhost:8000
-# Run database/init.sql in the SQL editor
-
-# 5. Access
-# Frontend:  http://localhost:3000
-# Studio:    http://localhost:8000
-# API:       http://localhost:8080
-# Backend:   http://localhost:8100
+# 4. Open http://localhost:3000
+# The setup wizard will guide you through:
+#   - Creating your account
+#   - Configuring your LLM provider (OpenAI / Ollama / OpenRouter)
 ```
 
 ## Technology Stack
@@ -48,7 +46,7 @@ docker compose -f infra/docker-compose.yml up -d
 | State      | React Query + Supabase Client       |
 | Backend    | FastAPI, Python 3.11                |
 | Agent      | LangGraph                           |
-| LLM Proxy  | LiteLLM                             |
+| LLM        | litellm (Python lib, direct calls)  |
 | Database   | PostgreSQL 15 + pgvector + pg_trgm  |
 | Auth       | Supabase Auth (GoTrue)              |
 | Infra      | Docker Compose                      |
@@ -60,14 +58,15 @@ docker compose -f infra/docker-compose.yml up -d
 ├── infra/                    # Docker Compose + config
 │   ├── docker-compose.yml    # Main composition
 │   ├── docker-compose.prod.yml  # Production overrides
-│   ├── .env.example          # All configuration
+│   ├── .env.example          # Reference (setup.sh generates .env)
+│   ├── setup.sh              # Zero-config bootstrap script
 │   ├── kong.yml              # API gateway config
-│   ├── litellm-config.yaml   # LLM routing
 │   └── backup/               # Backup/restore scripts
 ├── database/
 │   └── init.sql              # Schema: tables, RLS, indexes, RPCs
 ├── frontend/                 # Next.js workspace UI
 │   ├── app/                  # App Router pages
+│   │   ├── setup/            # First-run onboarding wizard
 │   │   ├── auth/             # Login/signup
 │   │   └── workspace/        # Main workspace
 │   ├── components/           # UI components
@@ -79,7 +78,7 @@ docker compose -f infra/docker-compose.yml up -d
 └── backend/                  # FastAPI agent service
     ├── app/                  # FastAPI application
     │   ├── routes/           # Webhook endpoints
-    │   └── services/         # Task runner (poller)
+    │   └── services/         # Task runner + LLM settings
     └── graph/
         └── workflows/        # LangGraph workflows
             ├── summarize.py  # Content summarization
@@ -95,12 +94,14 @@ docker compose -f infra/docker-compose.yml up -d
 - **Global search**: Full-text search (Cmd+K) via PostgreSQL tsvector + trigram
 - **Auth**: Supabase Auth with login/signup and protected routes
 - **Dashboard**: Recent pages, pinned pages, agent task status
+- **Setup wizard**: First-run onboarding (account creation + LLM config)
 
 ### Agent Workflows (Backend)
 - **Summarize**: Fetch content -> LLM summarize -> write back to node properties
 - **Smart Triage**: Classify -> extract entities/dates -> create linked child nodes
 - **Task poller**: Background loop that atomically claims and executes pending tasks
 - **Webhook ingestion**: External event intake with entity resolution
+- **Graceful degradation**: Agent features disabled until LLM is configured
 
 ### Keyboard Shortcuts
 | Shortcut | Action     |
@@ -110,9 +111,14 @@ docker compose -f infra/docker-compose.yml up -d
 
 ## Sovereignty Levers
 
-All choices are environment variables:
+LLM provider is configurable from the **Settings** page in the UI:
 
-- **LLM**: `LITELLM_MODEL=openai/gpt-4o` or `ollama/llama3` or `openrouter/anthropic/claude-3.5-sonnet`
+- **OpenAI**: `gpt-4o`, `gpt-4o-mini`, etc.
+- **Ollama**: `llama3`, `mistral`, etc. (local, no API key needed)
+- **OpenRouter**: `anthropic/claude-3.5-sonnet`, etc.
+
+Other sovereignty controls:
+
 - **Storage**: Supabase Storage (local or S3-compatible)
 - **Database**: Full PostgreSQL access + Supabase Studio dashboard
 - **Backup**: `pg_dump` script with optional S3 sync
@@ -121,7 +127,9 @@ All choices are environment variables:
 
 ```bash
 # Build and run with production overrides (no Studio, built images, resource limits)
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --build
+cd infra
+./setup.sh
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 ## Backup & Restore
@@ -142,3 +150,4 @@ POSTGRES_PASSWORD=your-password ./infra/backup/restore.sh /tmp/roka-backups/roka
 - Board/kanban views
 - File upload/attachment UI
 - Mobile responsive layout
+- Admin roles / permission system

@@ -13,8 +13,8 @@ from typing import Any, TypedDict
 import litellm
 from langgraph.graph import StateGraph, END
 
-from app.config import settings
 from app.db import get_pool
+from app.services.llm_settings import get_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,15 @@ async def classify_content(state: TriageState) -> dict[str, Any]:
     if not text.strip():
         return {"classification": "note"}
 
+    llm = await get_llm_config()
+    # Check already done in entry point
+    if not llm.is_configured:
+        return {"classification": "note"}
+
     response = await litellm.acompletion(
-        model=settings.litellm_model,
+        model=llm.model_string,
+        api_key=llm.api_key,
+        api_base=llm.api_base if llm.api_base else None,
         messages=[
             {
                 "role": "system",
@@ -60,8 +67,6 @@ async def classify_content(state: TriageState) -> dict[str, Any]:
             },
             {"role": "user", "content": text[:4000]},
         ],
-        api_base=settings.litellm_url,
-        api_key=settings.litellm_master_key,
     )
 
     classification = (response.choices[0].message.content or "note").strip().lower()
@@ -76,8 +81,15 @@ async def extract_entities_and_dates(state: TriageState) -> dict[str, Any]:
     if not text.strip():
         return {"extracted_entities": [], "extracted_dates": []}
 
+    llm = await get_llm_config()
+    # Check already done in entry point
+    if not llm.is_configured:
+        return {"extracted_entities": [], "extracted_dates": []}
+
     response = await litellm.acompletion(
-        model=settings.litellm_model,
+        model=llm.model_string,
+        api_key=llm.api_key,
+        api_base=llm.api_base if llm.api_base else None,
         messages=[
             {
                 "role": "system",
@@ -91,8 +103,6 @@ async def extract_entities_and_dates(state: TriageState) -> dict[str, Any]:
             },
             {"role": "user", "content": text[:4000]},
         ],
-        api_base=settings.litellm_url,
-        api_key=settings.litellm_master_key,
     )
 
     raw = response.choices[0].message.content or "{}"
@@ -206,6 +216,10 @@ async def run_triage_workflow(
         node_id = task_input.get("node_id", "")
     if not node_id:
         return {"error": "No node_id provided"}
+
+    llm = await get_llm_config()
+    if not llm.is_configured:
+        return {"error": "LLM not configured. Go to Settings to add your API key."}
 
     graph = build_triage_graph()
     app = graph.compile()

@@ -5,10 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useRecentPages, usePinnedPages, useCreateAgentTask } from "@/lib/queries/nodes";
+import { useSetupComplete } from "@/lib/hooks/use-app-settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   FileText,
   Database,
@@ -56,6 +63,8 @@ export default function WorkspacePage() {
     cancelled: "bg-gray-100 text-gray-800",
   };
 
+  const { llmConfigured } = useSetupComplete();
+
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-8">
       {/* Header */}
@@ -67,40 +76,64 @@ export default function WorkspacePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex gap-3">
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => {
-            if (recentPages[0]) {
-              createAgentTask.mutate({
-                workflow: "summarize",
-                nodeId: recentPages[0].id,
-              });
-            }
-          }}
-          disabled={recentPages.length === 0}
-        >
-          <Sparkles className="h-4 w-4" />
-          Summarize Latest Page
-        </Button>
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => {
-            if (recentPages[0]) {
-              createAgentTask.mutate({
-                workflow: "triage",
-                nodeId: recentPages[0].id,
-              });
-            }
-          }}
-          disabled={recentPages.length === 0}
-        >
-          <GitBranch className="h-4 w-4" />
-          Smart Triage Latest
-        </Button>
-      </div>
+      <TooltipProvider>
+        <div className="flex gap-3">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    if (recentPages[0]) {
+                      createAgentTask.mutate({
+                        workflow: "summarize",
+                        nodeId: recentPages[0].id,
+                      });
+                    }
+                  }}
+                  disabled={recentPages.length === 0 || !llmConfigured}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Summarize Latest Page
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!llmConfigured && (
+              <TooltipContent>
+                <p>Configure your LLM in Settings first</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    if (recentPages[0]) {
+                      createAgentTask.mutate({
+                        workflow: "triage",
+                        nodeId: recentPages[0].id,
+                      });
+                    }
+                  }}
+                  disabled={recentPages.length === 0 || !llmConfigured}
+                >
+                  <GitBranch className="h-4 w-4" />
+                  Smart Triage Latest
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!llmConfigured && (
+              <TooltipContent>
+                <p>Configure your LLM in Settings first</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </div>
+      </TooltipProvider>
 
       {/* Pinned Pages */}
       {pinnedPages.length > 0 && (

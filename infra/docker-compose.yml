@@ -175,18 +175,6 @@ services:
   # App Services
   # ──────────────────────────────────────────────
 
-  litellm:
-    image: ghcr.io/berriai/litellm:main-latest
-    restart: unless-stopped
-    ports:
-      - "${LITELLM_PORT:-4000}:4000"
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-    volumes:
-      - ./litellm-config.yaml:/app/config.yaml
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
-
   backend:
     build:
       context: ../backend
@@ -197,15 +185,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      litellm:
-        condition: service_started
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SUPABASE_URL: http://kong:8000
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      LITELLM_URL: http://litellm:4000
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
-      LITELLM_MODEL: ${LITELLM_MODEL:-openai/gpt-4o}
     volumes:
       - ../backend:/app
 

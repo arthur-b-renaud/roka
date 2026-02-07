@@ -11,9 +11,7 @@ class Settings(BaseSettings):
     supabase_url: str = "http://kong:8000"
     supabase_service_role_key: str = ""
 
-    # LiteLLM proxy
-    litellm_url: str = "http://litellm:4000"
-    litellm_master_key: str = ""
+    # LLM fallback (used only when DB has no llm config)
     litellm_model: str = "openai/gpt-4o"
 
     # Polling

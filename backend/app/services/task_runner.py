@@ -78,6 +78,19 @@ async def poll_agent_tasks() -> None:
                     task_input=dict(task_input) if task_input else {},
                 )
 
+                # Graceful handling: workflow returned an error dict (e.g. LLM not configured)
+                if result and result.get("error"):
+                    await pool.execute("""
+                        UPDATE agent_tasks
+                        SET status = 'failed',
+                            error = $2,
+                            completed_at = now(),
+                            updated_at = now()
+                        WHERE id = $1
+                    """, task_id, result["error"])
+                    logger.warning("Task %s failed: %s", task_id, result["error"])
+                    continue
+
                 await pool.execute("""
                     UPDATE agent_tasks
                     SET status = 'completed',

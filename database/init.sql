@@ -219,6 +219,26 @@ CREATE TABLE writes (
 CREATE INDEX idx_writes_task ON writes (task_id);
 
 -- ============================================================
+-- Zone D: App Settings  (key-value config, LLM credentials)
+-- ============================================================
+
+CREATE TABLE app_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL DEFAULT '',
+    is_secret   BOOLEAN NOT NULL DEFAULT false,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seed defaults
+INSERT INTO app_settings (key, value, is_secret) VALUES
+    ('setup_complete', 'false', false),
+    ('llm_provider', 'openai', false),
+    ('llm_model', 'gpt-4o', false),
+    ('llm_api_key', '', true),
+    ('llm_api_base', '', false),
+    ('llm_configured', 'false', false);
+
+-- ============================================================
 -- Updated_at trigger function
 -- ============================================================
 
@@ -241,6 +261,9 @@ CREATE TRIGGER trg_database_definitions_updated_at
 
 CREATE TRIGGER trg_agent_tasks_updated_at
     BEFORE UPDATE ON agent_tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_app_settings_updated_at
+    BEFORE UPDATE ON app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
 -- Row Level Security (RLS)
@@ -313,6 +336,20 @@ CREATE POLICY tasks_update ON agent_tasks FOR UPDATE
 CREATE POLICY checkpoints_all ON checkpoints FOR ALL
     USING (auth.role() = 'service_role');
 CREATE POLICY writes_all ON writes FOR ALL
+    USING (auth.role() = 'service_role');
+
+-- App settings: anon can read non-secret rows (setup_complete check before auth)
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY app_settings_anon_read ON app_settings FOR SELECT
+    USING (NOT is_secret);
+CREATE POLICY app_settings_auth_read ON app_settings FOR SELECT
+    USING (auth.role() = 'authenticated' AND NOT is_secret);
+CREATE POLICY app_settings_auth_update ON app_settings FOR UPDATE
+    USING (auth.role() = 'authenticated');
+CREATE POLICY app_settings_auth_insert ON app_settings FOR INSERT
+    WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY app_settings_service_all ON app_settings FOR ALL
     USING (auth.role() = 'service_role');
 
 -- ============================================================
