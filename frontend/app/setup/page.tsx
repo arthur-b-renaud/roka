@@ -128,10 +128,11 @@ export default function SetupPage() {
         </div>
 
         {/* Progress */}
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2" role="progressbar" aria-label="Setup progress" aria-valuenow={step === "account" ? 1 : step === "llm" ? 2 : 3} aria-valuemin={1} aria-valuemax={3}>
           {(["account", "llm", "done"] as Step[]).map((s, i) => (
             <div key={s} className="flex items-center gap-2">
               <div
+                aria-current={step === s ? "step" : undefined}
                 className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium ${
                   step === s
                     ? "bg-primary text-primary-foreground"
@@ -157,7 +158,7 @@ export default function SetupPage() {
 
         {/* Step 1: Account */}
         {step === "account" && (
-          <form onSubmit={handleSignup} className="space-y-4">
+          <form onSubmit={handleSignup} className="space-y-4" aria-label="Create account">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold">Create your account</h2>
               <p className="text-sm text-muted-foreground">
@@ -174,6 +175,8 @@ export default function SetupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-describedby={authError ? "setup-error" : undefined}
+                aria-invalid={authError ? "true" : "false"}
               />
             </div>
             <div className="space-y-2">
@@ -185,6 +188,8 @@ export default function SetupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-describedby={authError ? "setup-error" : undefined}
+                aria-invalid={authError ? "true" : "false"}
               />
             </div>
             <div className="space-y-2">
@@ -196,11 +201,13 @@ export default function SetupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                aria-describedby={authError ? "setup-error" : undefined}
+                aria-invalid={authError ? "true" : "false"}
               />
             </div>
 
             {authError && (
-              <p className="text-sm text-destructive">{authError}</p>
+              <p id="setup-error" role="alert" className="text-sm text-destructive">{authError}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={authLoading}>
@@ -221,18 +228,20 @@ export default function SetupPage() {
 
             <div className="space-y-2">
               <Label>Provider</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div role="radiogroup" aria-label="LLM Provider" className="grid grid-cols-3 gap-2">
                 {PROVIDERS.map((p) => (
                   <button
                     key={p.id}
                     type="button"
+                    role="radio"
+                    aria-checked={provider === p.id}
                     onClick={() => {
                       setProvider(p.id);
                       if (p.id === "openai") setModel("gpt-4o");
                       else if (p.id === "ollama") setModel("llama3");
                       else setModel("anthropic/claude-3.5-sonnet");
                     }}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    className={`rounded-lg border px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                       provider === p.id
                         ? "border-primary bg-primary/5 font-medium"
                         : "hover:bg-accent/50"
@@ -282,7 +291,8 @@ export default function SetupPage() {
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showKey ? "Hide API key" : "Show API key"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                   >
                     {showKey ? (
                       <EyeOff className="h-4 w-4" />

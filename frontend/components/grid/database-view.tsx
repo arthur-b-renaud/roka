@@ -178,9 +178,9 @@ export function DatabaseView({ node }: DatabaseViewProps) {
             )}
           </button>
           <button
-            className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover/title:opacity-100"
+            className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover/title:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => router.push(`/workspace/${row.original.id}`)}
-            title="Open as page"
+            aria-label="Open as page"
           >
             <ExternalLink className="h-3 w-3 text-muted-foreground" />
           </button>
@@ -196,7 +196,10 @@ export function DatabaseView({ node }: DatabaseViewProps) {
           <span>{col.name}</span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="rounded p-0.5 opacity-0 transition-opacity hover:bg-background group-hover/header:opacity-100">
+              <button 
+                aria-label={`${col.name} column menu`}
+                className="rounded p-0.5 opacity-0 transition-opacity hover:bg-background group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
                 <MoreHorizontal className="h-3 w-3" />
               </button>
             </DropdownMenuTrigger>
@@ -234,7 +237,10 @@ export function DatabaseView({ node }: DatabaseViewProps) {
       cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100">
+            <button 
+              aria-label="Row actions"
+              className="rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
@@ -269,7 +275,8 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full">
+        <table className="w-full" aria-label={`${node.title} database`}>
+          <caption className="sr-only">{node.title} database with {rows.length} row{rows.length !== 1 ? 's' : ''}</caption>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b bg-muted/50">
@@ -290,9 +297,9 @@ export function DatabaseView({ node }: DatabaseViewProps) {
                 {/* "+" header to add column */}
                 <th className="w-10 px-2 py-2">
                   <button
-                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => setShowAddColumn(true)}
-                    title="Add a property"
+                    aria-label="Add a property"
                   >
                     <Plus className="h-3.5 w-3.5" />
                   </button>

@@ -1,129 +1,105 @@
-# Roka -- Sovereign Agentic Workspace
+<p align="center">
+  <h1 align="center">Roka</h1>
+  <p align="center">
+    <strong>Open-source, self-hosted Notion alternative with built-in AI agents.</strong>
+  </p>
+  <p align="center">
+    Own your data. Own your AI. Deploy anywhere.
+  </p>
+  <p align="center">
+    <a href="#quick-start">Quick Start</a> &middot;
+    <a href="#deploy-to-a-vps">Deploy</a> &middot;
+    <a href="#features">Features</a> &middot;
+    <a href="#architecture">Architecture</a>
+  </p>
+  <p align="center">
+    <a href="https://github.com/arthur-b-renaud/roka/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+    <a href="https://github.com/arthur-b-renaud/roka"><img src="https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white" alt="Docker"></a>
+    <a href="https://github.com/arthur-b-renaud/roka"><img src="https://img.shields.io/badge/AI_Agents-LangGraph-FF6F00" alt="LangGraph"></a>
+    <a href="https://github.com/arthur-b-renaud/roka"><img src="https://img.shields.io/badge/BYO_LLM-OpenAI%20%7C%20Ollama%20%7C%20OpenRouter-7C3AED" alt="BYO LLM"></a>
+  </p>
+</p>
 
-A self-hosted knowledge workspace combining Notion-like editing with LangGraph agentic workflows. Built on Supabase + Next.js + FastAPI, deployable anywhere via Docker Compose.
+---
 
-## Architecture
+## Why Roka?
 
-```
-User -> Next.js (ANON key, RLS) -> Supabase Kong -> PostgreSQL
-                                                      ^
-                                                      |
-                    FastAPI + LangGraph (SERVICE_ROLE) -+-> litellm lib -> OpenAI/Ollama/OpenRouter
-                                                      |
-                                          app_settings (LLM config in DB)
-```
+Most "AI-powered" productivity tools are SaaS black boxes. Your notes, your documents, your company data -- all sitting on someone else's servers, processed by models you don't control.
 
-**Sidecar Pattern**: Frontend and Backend don't communicate via HTTP. They share the database. Frontend writes `agent_tasks` rows; Backend polls and executes them.
+**Roka is the opposite.** A Notion-like workspace where:
 
-**LLM config lives in the database**: provider, model, and API key are stored in the `app_settings` table and configurable from the UI. No env vars needed for LLM setup.
+- **You own the infrastructure** -- runs on your own server via Docker Compose
+- **You choose the AI** -- bring your own LLM (OpenAI, Ollama for local, OpenRouter, or any provider)
+- **AI agents work autonomously** -- summarize, triage, classify, and extract from your content
+- **Everything stays in your database** -- PostgreSQL with full-text search, no external dependencies
+
+One command to deploy. Zero lock-in.
 
 ## Quick Start
 
 ```bash
-# 1. Clone
 git clone https://github.com/arthur-b-renaud/roka.git
 cd roka
-
-# 2. Launch (automatically runs setup if needed)
 make up
-
-# 3. Open http://localhost:3000
-# The setup wizard will guide you through:
-#   - Creating your account
-#   - Configuring your LLM provider (OpenAI / Ollama / OpenRouter)
+# Open http://localhost:3000
 ```
 
-## Technology Stack
+That's it. The setup wizard walks you through creating your account and configuring your LLM provider.
 
-| Layer      | Technology                          |
-| ---------- | ----------------------------------- |
-| Frontend   | Next.js 14, React, Tailwind, Shadcn |
-| Editor     | BlockNote                           |
-| Data Grid  | TanStack Table                      |
-| State      | React Query + Supabase Client       |
-| Backend    | FastAPI, Python 3.11                |
-| Agent      | LangGraph                           |
-| LLM        | litellm (Python lib, direct calls)  |
-| Database   | PostgreSQL 15 + pgvector + pg_trgm  |
-| Auth       | Supabase Auth (GoTrue)              |
-| Infra      | Docker Compose                      |
-
-## Directory Structure
-
-```
-/
-├── infra/                    # Docker Compose + config
-│   ├── docker-compose.yml    # Main composition
-│   ├── docker-compose.prod.yml  # Production overrides
-│   ├── .env.example          # Reference (setup.sh generates .env)
-│   ├── setup.sh              # Zero-config bootstrap script
-│   ├── kong.yml              # API gateway config
-│   └── backup/               # Backup/restore scripts
-├── database/
-│   └── init.sql              # Schema: tables, RLS, indexes, RPCs
-├── frontend/                 # Next.js workspace UI
-│   ├── app/                  # App Router pages
-│   │   ├── setup/            # First-run onboarding wizard
-│   │   ├── auth/             # Login/signup
-│   │   └── workspace/        # Main workspace
-│   ├── components/           # UI components
-│   │   ├── editor/           # BlockNote editor
-│   │   ├── grid/             # TanStack Table database views
-│   │   ├── sidebar/          # Tree + search
-│   │   └── ui/               # Shadcn primitives
-│   └── lib/                  # Supabase clients, types, hooks
-└── backend/                  # FastAPI agent service
-    ├── app/                  # FastAPI application
-    │   ├── routes/           # Webhook endpoints
-    │   └── services/         # Task runner + LLM settings
-    └── graph/
-        └── workflows/        # LangGraph workflows
-            ├── summarize.py  # Content summarization
-            └── triage.py     # Smart classify + extract
-```
+**Requirements:** Docker and Docker Compose.
 
 ## Features
 
-### Workspace (Frontend)
-- **Page editor**: BlockNote rich text with debounced auto-save
-- **Database views**: TanStack Table with dynamic columns from schema config
-- **Sidebar tree**: Recursive page tree with lazy-loaded children
-- **Global search**: Full-text search (Cmd+K) via PostgreSQL tsvector + trigram
-- **Auth**: Supabase Auth with login/signup and protected routes
-- **Dashboard**: Recent pages, pinned pages, agent task status
-- **Setup wizard**: First-run onboarding (account creation + LLM config)
+### Workspace
+- **Rich text editor** -- BlockNote-powered with auto-save
+- **Database views** -- Notion-style tables with dynamic columns and properties
+- **Page tree** -- Hierarchical sidebar with drag-and-drop organization
+- **Global search** -- Full-text + fuzzy search (Cmd+K) powered by PostgreSQL
+- **Setup wizard** -- First-run onboarding: account creation + LLM configuration
 
-### Agent Workflows (Backend)
-- **Summarize**: Fetch content -> LLM summarize -> write back to node properties
-- **Smart Triage**: Classify -> extract entities/dates -> create linked child nodes
-- **Task poller**: Background loop that atomically claims and executes pending tasks
-- **Webhook ingestion**: External event intake with entity resolution
-- **Webhook auth**: If `WEBHOOK_SECRET` is set, requests must include `X-Roka-Webhook-Secret`
-- **Graceful degradation**: Agent features disabled until LLM is configured
+### AI Agents
+- **Summarize** -- Extract key points from any page, written back as structured properties
+- **Smart Triage** -- Classify content, extract entities and dates, auto-create linked sub-pages
+- **Background processing** -- Tasks execute asynchronously via a polling + LISTEN/NOTIFY system
+- **Graceful degradation** -- Workspace works fully without AI; agent features activate when LLM is configured
 
-### Keyboard Shortcuts
-| Shortcut | Action     |
-| -------- | ---------- |
-| Cmd+K    | Search     |
-| Cmd+N    | New page   |
+### Sovereignty
+- **BYO LLM** -- Configure from the UI: OpenAI, Ollama (100% local), OpenRouter, or any litellm-compatible provider
+- **Self-hosted auth** -- Supabase Auth (GoTrue), no third-party auth dependency
+- **Full database access** -- PostgreSQL with pgvector, pg_trgm, and Supabase Studio dashboard
+- **Backup/Restore** -- `pg_dump` scripts with optional S3 sync
 
-## Sovereignty Levers
+## Architecture
 
-LLM provider is configurable from the **Settings** page in the UI:
+```
+Browser -> Next.js (ANON key, RLS) -> Kong -> PostgreSQL 15
+                                                   ^
+                                                   |
+             FastAPI + LangGraph (SERVICE_ROLE) ---+---> litellm -> OpenAI / Ollama / OpenRouter
+                                                   |
+                                           app_settings (LLM config in DB)
+```
 
-- **OpenAI**: `gpt-4o`, `gpt-4o-mini`, etc.
-- **Ollama**: `llama3`, `mistral`, etc. (local, no API key needed)
-- **OpenRouter**: `anthropic/claude-3.5-sonnet`, etc.
+**The Sidecar Pattern:** Frontend and Backend never talk to each other directly. They share the database. The frontend writes `agent_tasks` rows; the backend polls and executes them. This makes the system simple, debuggable, and resilient -- if the agent crashes, the workspace keeps working.
 
-Other sovereignty controls:
+## Tech Stack
 
-- **Storage**: Supabase Storage (local or S3-compatible)
-- **Database**: Full PostgreSQL access + Supabase Studio dashboard
-- **Backup**: `pg_dump` script with optional S3 sync
+| Layer | Technology |
+| ----- | ---------- |
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI |
+| Editor | BlockNote |
+| Data Grid | TanStack Table (headless) |
+| State | React Query + Supabase Client |
+| Backend | FastAPI, Python 3.11, Pydantic v2 |
+| Agent | LangGraph (stateful workflows) |
+| LLM | litellm (direct calls, no middleware) |
+| Database | PostgreSQL 15 + pgvector + pg_trgm |
+| Auth | Supabase Auth (GoTrue) |
+| Infra | Docker Compose, Caddy (production HTTPS) |
 
 ## Deploy to a VPS
 
-One command to deploy on any Ubuntu/Debian VPS. Installs Docker if needed, sets up HTTPS via Caddy.
+One command. Installs Docker if needed, generates secrets, sets up HTTPS via Caddy.
 
 ```bash
 # With a domain (auto-HTTPS via Let's Encrypt)
@@ -133,33 +109,92 @@ curl -sSL https://raw.githubusercontent.com/arthur-b-renaud/roka/main/install.sh
 curl -sSL https://raw.githubusercontent.com/arthur-b-renaud/roka/main/install.sh | sudo bash
 ```
 
-**Requirements**: Ubuntu 22.04+ or Debian 12+ VPS, 2 GB RAM / 2 vCPU minimum. Point your domain's DNS A record to the server IP before running with `--domain`. The script configures UFW to only allow ports 22, 80, and 443.
+**Minimum specs:** Ubuntu 22.04+ / Debian 12+, 2 GB RAM, 2 vCPU. Point your domain's DNS A record to the server before running with `--domain`.
 
-The script clones to `/opt/roka` by default (override with `--dir /your/path`).
+The installer:
+- Installs Docker + Compose if missing
+- Clones to `/opt/roka` (override with `--dir`)
+- Generates all secrets automatically
+- Configures Caddy reverse proxy + Let's Encrypt
+- Sets up UFW firewall (ports 22, 80, 443 only)
+- Starts the full stack in production mode
 
-## Local Production Build
+## Project Structure
+
+```
+roka/
+├── frontend/              Next.js workspace UI
+│   ├── app/               App Router (setup, auth, workspace)
+│   ├── components/        Editor, grid, sidebar, UI primitives
+│   └── lib/               Supabase clients, React Query hooks, types
+├── backend/               FastAPI agent service
+│   ├── app/               Routes, services, config
+│   └── graph/workflows/   LangGraph workflows (summarize, triage)
+├── database/
+│   └── init.sql           Schema, RLS policies, triggers, search RPCs
+├── infra/                 Docker Compose, Kong, setup scripts, backups
+└── install.sh             One-liner VPS installer
+```
+
+## LLM Configuration
+
+Configure from **Settings** in the UI after setup. Stored in the database, not in env vars.
+
+| Provider | Models | API Key |
+| -------- | ------ | ------- |
+| OpenAI | `gpt-4o`, `gpt-4o-mini`, etc. | Required |
+| Ollama | `llama3`, `mistral`, etc. | Not needed (local) |
+| OpenRouter | `anthropic/claude-3.5-sonnet`, etc. | Required |
+
+For Ollama in Docker, set the API Base URL to `http://host.docker.internal:11434`.
+
+## Commands
 
 ```bash
-# Build and run with production overrides (no Studio, built images, resource limits)
-make prod
+make up           # Start (auto-generates secrets on first run)
+make down         # Stop
+make logs         # Tail logs
+make prod         # Production build (Caddy, built images, no Studio)
+make setup        # Regenerate secrets manually
+make fix-content  # Fix corrupted BlockNote content (if text appears vertically)
 ```
 
 ## Backup & Restore
 
 ```bash
 # Backup
-POSTGRES_PASSWORD=your-password ./infra/backup/backup.sh
+POSTGRES_PASSWORD=<see infra/.env> ./infra/backup/backup.sh
 
 # Restore
-POSTGRES_PASSWORD=your-password ./infra/backup/restore.sh /tmp/roka-backups/roka_20260206_030000.sql.gz
+POSTGRES_PASSWORD=<see infra/.env> ./infra/backup/restore.sh ./backup.sql.gz
 ```
 
-## Not in v1 (Planned for v2)
+## Troubleshooting
 
-- Live collaboration (Yjs/Hocuspocus)
-- Agent visualizer (React Flow)
-- Vector/semantic search (pgvector embeddings)
-- Board/kanban views
-- File upload/attachment UI
-- Mobile responsive layout
-- Admin roles / permission system
+### Text appears vertically (one character per line)
+
+This happens when BlockNote content gets corrupted with individual characters as separate blocks. To fix:
+
+```bash
+make fix-content
+```
+
+Then refresh your browser. The script combines fragmented text blocks back into proper paragraphs.
+
+## Roadmap
+
+- [ ] Live collaboration (Yjs / Hocuspocus)
+- [ ] Agent workflow visualizer (React Flow)
+- [ ] Semantic search with pgvector embeddings
+- [ ] Board / Kanban views
+- [ ] File uploads and attachments
+- [ ] Mobile responsive layout
+- [ ] Multi-user roles and permissions
+
+## Contributing
+
+Contributions welcome. Open an issue first to discuss what you'd like to change.
+
+## License
+
+[MIT](LICENSE) -- Arthur RENAUD

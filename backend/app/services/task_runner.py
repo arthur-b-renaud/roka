@@ -15,12 +15,14 @@ from app.config import settings
 from app.db import get_pool
 from graph.workflows.summarize import run_summarize_workflow
 from graph.workflows.triage import run_triage_workflow
+from graph.workflows.agent import run_agent_workflow
 
 logger = logging.getLogger(__name__)
 
 WORKFLOW_HANDLERS = {
     "summarize": run_summarize_workflow,
     "triage": run_triage_workflow,
+    "agent": run_agent_workflow,
 }
 
 # Tasks running longer than this (with no heartbeat update) are considered stale

@@ -119,7 +119,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
 ############
 
 BACKEND_PORT=8100
-DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD}@db:5432/postgres
 ENVEOF
 
 echo ""

@@ -124,7 +124,7 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="flex h-full w-64 flex-col border-r bg-secondary/30">
+    <aside aria-label="Sidebar navigation" className="flex h-full w-64 flex-col border-r bg-secondary/30">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <h2 className="text-lg font-semibold tracking-tight">Roka</h2>

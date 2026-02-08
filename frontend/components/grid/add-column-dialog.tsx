@@ -89,13 +89,15 @@ export function AddColumnDialog({
 
           <div className="space-y-2">
             <Label>Type</Label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div role="radiogroup" aria-label="Column type" className="grid grid-cols-3 gap-1.5">
               {COLUMN_TYPES.map((ct) => (
                 <button
                   key={ct.value}
                   type="button"
+                  role="radio"
+                  aria-checked={type === ct.value}
                   onClick={() => setType(ct.value)}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
+                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     type === ct.value
                       ? "border-primary bg-primary/10 font-medium text-primary"
                       : "border-border hover:bg-muted"

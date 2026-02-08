@@ -54,15 +54,16 @@ function TextCell({
 
   if (!editing) {
     return (
-      <span
-        className="block min-h-[1.5rem] cursor-text text-sm"
+      <button
+        type="button"
         onClick={() => {
           setEditing(true);
           setTimeout(() => inputRef.current?.focus(), 0);
         }}
+        className="block min-h-[1.5rem] w-full cursor-text text-sm text-left hover:bg-accent/50 rounded px-1"
       >
         {value || <span className="text-muted-foreground/60 italic">Empty</span>}
-      </span>
+      </button>
     );
   }
 
@@ -106,12 +107,13 @@ function NumberCell({
 
   if (!editing) {
     return (
-      <span
-        className="block min-h-[1.5rem] cursor-text text-sm tabular-nums"
+      <button
+        type="button"
         onClick={() => setEditing(true)}
+        className="block min-h-[1.5rem] w-full cursor-text text-sm tabular-nums text-left hover:bg-accent/50 rounded px-1"
       >
         {value != null ? value : <span className="text-muted-foreground/60 italic">-</span>}
-      </span>
+      </button>
     );
   }
 
@@ -160,11 +162,26 @@ function SelectCell({
 }) {
   const [open, setOpen] = useState(false);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
   return (
     <div className="relative">
-      <div
-        className="flex min-h-[1.5rem] cursor-pointer items-center"
+      <button
+        type="button"
         onClick={() => setOpen(!open)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen(!open);
+          }
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex min-h-[1.5rem] w-full cursor-pointer items-center text-left hover:bg-accent/50 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {value ? (
           <Badge
@@ -176,16 +193,19 @@ function SelectCell({
         ) : (
           <span className="text-sm text-muted-foreground/60 italic">Select...</span>
         )}
-      </div>
+      </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-popover p-1 shadow-lg">
+          <div role="listbox" onKeyDown={handleKeyDown} className="absolute left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-popover p-1 shadow-lg">
             {options.map((opt, i) => (
               <button
                 key={opt}
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                type="button"
+                role="option"
+                aria-selected={value === opt}
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   onChange(opt);
                   setOpen(false);
@@ -203,7 +223,8 @@ function SelectCell({
               <>
                 <div className="my-1 h-px bg-border" />
                 <button
-                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent"
+                  type="button"
+                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={() => {
                     onChange("");
                     setOpen(false);
@@ -250,6 +271,7 @@ function CheckboxCell({
         type="checkbox"
         checked={!!value}
         onChange={(e) => onChange(e.target.checked)}
+        aria-label="Toggle checkbox"
         className="h-4 w-4 cursor-pointer rounded border-gray-300 text-primary focus:ring-primary"
       />
     </div>

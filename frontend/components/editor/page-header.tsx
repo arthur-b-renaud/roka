@@ -44,7 +44,7 @@ export function PageHeader({ node }: PageHeaderProps) {
         <div className="relative h-48 w-full overflow-hidden rounded-lg">
           <img
             src={node.cover_url}
-            alt="Cover"
+            alt=""
             className="h-full w-full object-cover"
           />
         </div>
@@ -54,6 +54,7 @@ export function PageHeader({ node }: PageHeaderProps) {
         <input
           value={title}
           onChange={handleChange}
+          aria-label="Page title"
           className="w-full bg-transparent text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground"
           placeholder="Untitled"
         />

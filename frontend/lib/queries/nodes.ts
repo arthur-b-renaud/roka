@@ -57,37 +57,47 @@ export function useCreateAgentTask() {
     mutationFn: async ({
       workflow,
       nodeId,
+      prompt,
     }: {
-      workflow: "summarize" | "triage";
-      nodeId: string;
+      workflow: "summarize" | "triage" | "agent";
+      nodeId?: string;
+      prompt?: string;
     }) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      const input: Record<string, unknown> = {};
+      if (nodeId) input.node_id = nodeId;
+      if (prompt) input.prompt = prompt;
+
       const { error } = await supabase.from("agent_tasks").insert({
         owner_id: user.id,
         workflow,
-        node_id: nodeId,
-        input: { node_id: nodeId },
+        node_id: nodeId ?? null,
+        input,
       });
       if (error) throw error;
     },
     // Optimistic update: show the task immediately as "pending"
-    onMutate: async ({ workflow, nodeId }) => {
+    onMutate: async ({ workflow, nodeId, prompt }) => {
       await queryClient.cancelQueries({ queryKey: ["agent-tasks", userId] });
       const previous = queryClient.getQueryData<DbAgentTask[]>(["agent-tasks", userId]);
+
+      const input: Record<string, unknown> = {};
+      if (nodeId) input.node_id = nodeId;
+      if (prompt) input.prompt = prompt;
 
       const optimisticTask: DbAgentTask = {
         id: crypto.randomUUID(),
         owner_id: userId ?? "",
         workflow,
         status: "pending",
-        input: { node_id: nodeId },
+        input,
         output: null,
         error: null,
-        node_id: nodeId,
+        node_id: nodeId ?? null,
         started_at: null,
         completed_at: null,
         created_at: new Date().toISOString(),

@@ -45,6 +45,7 @@ export function Breadcrumbs({ nodeId }: BreadcrumbsProps) {
       <Link
         href="/workspace"
         className="flex items-center gap-1 hover:text-foreground"
+        aria-label="Home"
       >
         <Home className="h-3 w-3" />
       </Link>

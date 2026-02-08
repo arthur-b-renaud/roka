@@ -58,7 +58,7 @@ export default function SignupPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSignup} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-4" aria-label="Sign up">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -68,6 +68,8 @@ export default function SignupPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              aria-describedby={error ? "signup-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
             />
           </div>
           <div className="space-y-2">
@@ -79,6 +81,8 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              aria-describedby={error ? "signup-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
             />
           </div>
           <div className="space-y-2">
@@ -90,11 +94,13 @@ export default function SignupPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
+              aria-describedby={error ? "signup-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
             />
           </div>
 
           {error && (
-            <p className="text-sm text-destructive">{error}</p>
+            <p id="signup-error" role="alert" className="text-sm text-destructive">{error}</p>
           )}
 
           <Button type="submit" className="w-full" disabled={loading}>

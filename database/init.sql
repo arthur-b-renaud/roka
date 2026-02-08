@@ -182,7 +182,7 @@ CREATE TABLE database_definitions (
 CREATE TYPE agent_task_status AS ENUM ('pending', 'running', 'completed', 'failed', 'cancelled');
 
 -- Enum: workflow type
-CREATE TYPE workflow_type AS ENUM ('summarize', 'triage', 'custom');
+CREATE TYPE workflow_type AS ENUM ('summarize', 'triage', 'agent', 'custom');
 
 -- Agent tasks: triggered workflows
 CREATE TABLE agent_tasks (
@@ -253,7 +253,12 @@ INSERT INTO app_settings (key, value, is_secret) VALUES
     ('llm_model', 'gpt-4o', false),
     ('llm_api_key', '', true),
     ('llm_api_base', '', false),
-    ('llm_configured', 'false', false);
+    ('llm_configured', 'false', false),
+    ('smtp_host', '', false),
+    ('smtp_port', '587', false),
+    ('smtp_user', '', false),
+    ('smtp_password', '', true),
+    ('smtp_from_email', '', false);
 
 -- ============================================================
 -- LISTEN/NOTIFY: wake the backend poller on new tasks
@@ -384,22 +389,31 @@ CREATE POLICY app_settings_auth_read ON app_settings FOR SELECT
 CREATE POLICY app_settings_auth_update ON app_settings FOR UPDATE
     USING (
         auth.role() = 'authenticated'
-        AND key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+        AND key IN (
+            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
+            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
+        )
     )
     WITH CHECK (
-        key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+        key IN (
+            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
+            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
+        )
         AND (
-            (key = 'llm_api_key' AND is_secret = true)
-            OR (key <> 'llm_api_key' AND is_secret = false)
+            (key IN ('llm_api_key', 'smtp_password') AND is_secret = true)
+            OR (key NOT IN ('llm_api_key', 'smtp_password') AND is_secret = false)
         )
     );
 CREATE POLICY app_settings_auth_insert ON app_settings FOR INSERT
     WITH CHECK (
         auth.role() = 'authenticated'
-        AND key IN ('setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured')
+        AND key IN (
+            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
+            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
+        )
         AND (
-            (key = 'llm_api_key' AND is_secret = true)
-            OR (key <> 'llm_api_key' AND is_secret = false)
+            (key IN ('llm_api_key', 'smtp_password') AND is_secret = true)
+            OR (key NOT IN ('llm_api_key', 'smtp_password') AND is_secret = false)
         )
     );
 CREATE POLICY app_settings_service_all ON app_settings FOR ALL

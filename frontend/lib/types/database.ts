@@ -24,7 +24,7 @@ export const dbNodeSchema = z.object({
 });
 
 export const agentTaskStatusSchema = z.enum(["pending", "running", "completed", "failed", "cancelled"]);
-export const workflowTypeSchema = z.enum(["summarize", "triage", "custom"]);
+export const workflowTypeSchema = z.enum(["summarize", "triage", "agent", "custom"]);
 
 export const dbAgentTaskSchema = z.object({
   id: z.string().uuid(),

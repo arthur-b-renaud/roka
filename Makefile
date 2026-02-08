@@ -1,12 +1,13 @@
-.PHONY: setup up down logs help prod
+.PHONY: setup up down logs help prod fix-content
 
 help:
 	@echo "Available commands:"
-	@echo "  make up      - Run setup (if needed) and start the stack"
-	@echo "  make down    - Stop the stack"
-	@echo "  make logs    - View logs"
-	@echo "  make prod    - Run with production overrides"
-	@echo "  make setup   - Generate secrets (infra/.env) manually"
+	@echo "  make up          - Run setup (if needed) and start the stack"
+	@echo "  make down        - Stop the stack"
+	@echo "  make logs        - View logs"
+	@echo "  make prod        - Run with production overrides"
+	@echo "  make setup       - Generate secrets (infra/.env) manually"
+	@echo "  make fix-content - Fix corrupted BlockNote content in database"
 
 setup:
 	@if [ ! -f infra/.env ]; then \
@@ -27,3 +28,8 @@ logs:
 
 prod: setup
 	cd infra && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+fix-content:
+	@echo "Fixing corrupted BlockNote content..."
+	cd infra && docker compose exec -T postgres psql -U postgres -d roka -f /docker-entrypoint-initdb.d/fix-blocknote-content.sql
+	@echo "Done! Refresh your browser to see the fixed content."

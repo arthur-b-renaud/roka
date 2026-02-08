@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSupabase } from "@/components/providers/supabase-provider";
@@ -9,6 +9,7 @@ import { useRecentPages, usePinnedPages, useCreateAgentTask } from "@/lib/querie
 import { useSetupComplete } from "@/lib/hooks/use-app-settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -25,6 +26,7 @@ import {
   Bot,
   Sparkles,
   GitBranch,
+  Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { dbAgentTaskSchema, type DbNode, type DbAgentTask } from "@/lib/types/database";
@@ -60,14 +62,26 @@ export default function WorkspacePage() {
   });
 
   const statusColors: Record<string, string> = useMemo(() => ({
-    pending: "bg-yellow-100 text-yellow-800",
-    running: "bg-blue-100 text-blue-800",
-    completed: "bg-green-100 text-green-800",
-    failed: "bg-red-100 text-red-800",
-    cancelled: "bg-gray-100 text-gray-800",
+    pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+    running: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    completed: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+    failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+    cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-800/40 dark:text-gray-300",
   }), []);
 
   const { llmConfigured } = useSetupComplete();
+  const [agentPrompt, setAgentPrompt] = useState("");
+
+  const handleAgentSubmit = () => {
+    const trimmed = agentPrompt.trim();
+    if (!trimmed) return;
+    createAgentTask.mutate({
+      workflow: "agent",
+      prompt: trimmed,
+      nodeId: recentPages[0]?.id,
+    });
+    setAgentPrompt("");
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 p-8">
@@ -78,6 +92,37 @@ export default function WorkspacePage() {
           Welcome to your workspace
         </p>
       </div>
+
+      {/* Agent Prompt */}
+      {llmConfigured && (
+        <section className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              value={agentPrompt}
+              onChange={(e) => setAgentPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAgentSubmit();
+                }
+              }}
+              placeholder="Ask the agent... (e.g. &quot;Create tasks from my latest notes&quot;)"
+              className="flex-1"
+            />
+            <Button
+              onClick={handleAgentSubmit}
+              disabled={!agentPrompt.trim() || createAgentTask.isPending}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Ask Agent
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The agent can search your workspace, create tasks, and send emails.
+          </p>
+        </section>
+      )}
 
       {/* Quick Actions */}
       <TooltipProvider>
@@ -196,22 +241,39 @@ export default function WorkspacePage() {
             {agentTasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between rounded-lg border px-4 py-3"
+                className="rounded-lg border px-4 py-3"
               >
-                <div className="flex items-center gap-3">
-                  <Badge
-                    variant="outline"
-                    className={`${statusColors[task.status] ?? ""} border-0 text-xs`}
-                  >
-                    {task.status}
-                  </Badge>
-                  <span className="text-sm font-medium capitalize">
-                    {task.workflow}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant="outline"
+                      className={`${statusColors[task.status] ?? ""} border-0 text-xs`}
+                    >
+                      {task.status}
+                    </Badge>
+                    <span className="text-sm font-medium capitalize">
+                      {task.workflow}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(task.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(task.created_at), { addSuffix: true })}
-                </span>
+                {task.workflow === "agent" && task.input?.prompt && (
+                  <p className="mt-1.5 text-xs text-muted-foreground truncate">
+                    {String(task.input.prompt)}
+                  </p>
+                )}
+                {task.status === "completed" && task.output?.response && (
+                  <p className="mt-1.5 text-sm text-foreground/80 line-clamp-2">
+                    {String(task.output.response)}
+                  </p>
+                )}
+                {task.status === "failed" && task.error && (
+                  <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 truncate">
+                    {task.error}
+                  </p>
+                )}
               </div>
             ))}
           </div>
