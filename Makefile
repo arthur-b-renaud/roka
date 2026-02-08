@@ -32,13 +32,13 @@ prod: setup
 
 fix-content:
 	@echo "Fixing corrupted BlockNote content..."
-	cd infra && docker compose exec -T postgres psql -U postgres -d roka -f /docker-entrypoint-initdb.d/fix-blocknote-content.sql
+	cd infra && docker compose exec -T db psql -U supabase_admin -d postgres -f /docker-entrypoint-initdb.d/fix-blocknote-content.sql
 	@echo "Done! Refresh your browser to see the fixed content."
 
 migrate:
 	@echo "Running database migrations..."
 	@for f in database/migrations/*.sql; do \
 		echo "  Applying $$f..."; \
-		cd infra && docker compose exec -T db psql -U postgres -d roka -f /migrations/$$(basename $$f) && cd ..; \
+		(cd infra && docker compose exec -T db psql -U supabase_admin -d postgres -f /migrations/$$(basename $$f)); \
 	done
 	@echo "Migrations complete."
