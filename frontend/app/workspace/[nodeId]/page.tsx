@@ -34,7 +34,7 @@ export default function NodePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 p-8">
+      <div className="mx-auto max-w-4xl space-y-4 px-24 pt-4">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-6 w-full" />
@@ -53,7 +53,7 @@ export default function NodePage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-8">
+    <div className="mx-auto max-w-4xl px-24 pt-4 pb-8">
       <Breadcrumbs nodeId={nodeId} />
       <EditorErrorBoundary>
         {node.type === "database" ? (

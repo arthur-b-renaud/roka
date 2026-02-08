@@ -10,7 +10,7 @@ import { useSetupComplete } from "@/lib/hooks/use-app-settings";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+// Separator removed for cleaner visual hierarchy
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -84,18 +84,15 @@ export default function WorkspacePage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 p-8">
+    <div className="mx-auto max-w-4xl space-y-6 px-24 py-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Home</h1>
-        <p className="mt-1 text-muted-foreground">
-          Welcome to your workspace
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
       </div>
 
       {/* Agent Prompt */}
       {llmConfigured && (
-        <section className="space-y-2">
+        <section className="rounded-lg border px-4 py-3 space-y-2">
           <div className="flex gap-2">
             <Input
               value={agentPrompt}
@@ -106,21 +103,19 @@ export default function WorkspacePage() {
                   handleAgentSubmit();
                 }
               }}
-              placeholder="Ask the agent... (e.g. &quot;Create tasks from my latest notes&quot;)"
-              className="flex-1"
+              placeholder="Ask the agent..."
+              className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 text-sm"
             />
             <Button
               onClick={handleAgentSubmit}
               disabled={!agentPrompt.trim() || createAgentTask.isPending}
-              className="gap-2"
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 text-muted-foreground hover:text-foreground"
             >
-              <Send className="h-4 w-4" />
-              Ask Agent
+              <Send className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            The agent can search your workspace, create tasks, and send emails.
-          </p>
         </section>
       )}
 
@@ -187,11 +182,11 @@ export default function WorkspacePage() {
       {/* Pinned Pages */}
       {pinnedPages.length > 0 && (
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-            <Pin className="h-4 w-4" />
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            <Pin className="h-3.5 w-3.5" />
             Pinned
           </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {pinnedPages.map((page) => (
               <PageCard key={page.id} node={page} onClick={() => router.push(`/workspace/${page.id}`)} />
             ))}
@@ -201,12 +196,12 @@ export default function WorkspacePage() {
 
       {/* Recent Pages */}
       <section>
-        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-          <Clock className="h-4 w-4" />
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          <Clock className="h-3.5 w-3.5" />
           Recent
         </h2>
         {loadingRecent ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-24 rounded-lg" />
             ))}
@@ -216,7 +211,7 @@ export default function WorkspacePage() {
             No pages yet. Create one from the sidebar.
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {recentPages.map((page) => (
               <PageCard key={page.id} node={page} onClick={() => router.push(`/workspace/${page.id}`)} />
             ))}
@@ -224,12 +219,10 @@ export default function WorkspacePage() {
         )}
       </section>
 
-      <Separator />
-
       {/* Agent Tasks */}
       <section>
-        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
-          <Bot className="h-4 w-4" />
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          <Bot className="h-3.5 w-3.5" />
           Agent Tasks
         </h2>
         {agentTasks.length === 0 ? (
@@ -241,7 +234,7 @@ export default function WorkspacePage() {
             {agentTasks.map((task) => (
               <div
                 key={task.id}
-                className="rounded-lg border px-4 py-3"
+                className="rounded-lg border px-4 py-3 transition-colors duration-150"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -290,7 +283,7 @@ const PageCard = memo(function PageCard({ node, onClick }: { node: DbNode; onCli
     <button
       onClick={onClick}
       aria-label={`Open ${node.title || "Untitled"}`}
-      className="flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-colors hover:bg-accent/50"
+      className="flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-colors duration-150 hover:bg-accent/50"
     >
       <div className="flex items-center gap-2">
         {node.icon ? (

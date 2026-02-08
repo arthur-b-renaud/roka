@@ -39,9 +39,9 @@ export function PageHeader({ node }: PageHeaderProps) {
   };
 
   return (
-    <div className="mb-6 space-y-2">
+    <div className="mb-4 space-y-1.5">
       {node.cover_url && (
-        <div className="relative h-48 w-full overflow-hidden rounded-lg">
+        <div className="relative h-[200px] w-full overflow-hidden rounded-lg">
           <img
             src={node.cover_url}
             alt=""
@@ -50,12 +50,12 @@ export function PageHeader({ node }: PageHeaderProps) {
         </div>
       )}
       <div className="flex items-center gap-3">
-        {node.icon && <span className="text-4xl">{node.icon}</span>}
+        {node.icon && <span className="text-3xl">{node.icon}</span>}
         <input
           value={title}
           onChange={handleChange}
           aria-label="Page title"
-          className="w-full bg-transparent text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground"
+          className="w-full bg-transparent text-[32px] font-bold leading-tight tracking-tight outline-none placeholder:text-muted-foreground"
           placeholder="Untitled"
         />
       </div>

@@ -75,8 +75,8 @@ const TreeNode = memo(function TreeNode({ node, depth }: { node: DbNode; depth: 
     <div role="treeitem" aria-expanded={expanded}>
       <div
         className={cn(
-          "group flex items-center gap-1 rounded-md px-2 py-1 text-sm transition-colors hover:bg-accent",
-          isActive && "bg-accent font-medium"
+          "group flex min-h-[28px] items-center gap-1 rounded-md px-2 py-[3px] text-[13px] transition-colors duration-150 hover:bg-accent/60",
+          isActive && "bg-accent/60 font-medium"
         )}
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
@@ -87,7 +87,7 @@ const TreeNode = memo(function TreeNode({ node, depth }: { node: DbNode; depth: 
         >
           <ChevronRight
             className={cn(
-              "h-3 w-3 transition-transform",
+              "h-3 w-3 transition-transform duration-150 ease-out",
               expanded && "rotate-90"
             )}
           />
@@ -97,9 +97,9 @@ const TreeNode = memo(function TreeNode({ node, depth }: { node: DbNode; depth: 
           className="flex flex-1 items-center gap-2 truncate"
         >
           {node.icon ? (
-            <span className="text-sm">{node.icon}</span>
+            <span className="text-[13px]">{node.icon}</span>
           ) : (
-            <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Icon className="h-[15px] w-[15px] shrink-0 text-muted-foreground" />
           )}
           <span className="truncate">{node.title || "Untitled"}</span>
         </button>

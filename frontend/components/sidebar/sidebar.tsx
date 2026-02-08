@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSupabase } from "@/components/providers/supabase-provider";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/toast";
 import { WorkspaceTree } from "./workspace-tree";
 import {
@@ -16,7 +14,6 @@ import {
   Settings,
   LogOut,
   Home,
-  Database,
 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
@@ -27,7 +24,6 @@ export function Sidebar() {
   const { userId } = useCurrentUser();
   const { toast } = useToast();
 
-  // Fetch root-level pages (parent_id IS NULL, type = page)
   const { data: pages = [] } = useQuery<DbNode[]>({
     queryKey: ["sidebar-pages", userId],
     queryFn: async () => {
@@ -46,7 +42,6 @@ export function Sidebar() {
     enabled: !!userId,
   });
 
-  // Create new page
   const createPage = useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("Not authenticated");
@@ -73,52 +68,6 @@ export function Sidebar() {
     },
   });
 
-  // Create new database
-  const createDatabase = useMutation({
-    mutationFn: async () => {
-      if (!userId) throw new Error("Not authenticated");
-      // Create the database node
-      const { data: node, error: nodeErr } = await supabase
-        .from("nodes")
-        .insert({
-          owner_id: userId,
-          type: "database",
-          title: "Untitled Database",
-          content: [],
-          properties: {},
-        })
-        .select()
-        .single();
-      if (nodeErr) throw nodeErr;
-
-      // Create default schema
-      const { error: defErr } = await supabase
-        .from("database_definitions")
-        .insert({
-          node_id: node.id,
-          schema_config: [
-            { key: "status", name: "Status", type: "select", options: ["Todo", "In Progress", "Done"] },
-            { key: "priority", name: "Priority", type: "select", options: ["Low", "Medium", "High"] },
-          ],
-        });
-      if (defErr) throw defErr;
-
-      // Create default view
-      await supabase
-        .from("database_views")
-        .insert({ database_id: node.id, name: "Default view", view_config: {} });
-
-      return node as DbNode;
-    },
-    onSuccess: (node) => {
-      queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
-      router.push(`/workspace/${node.id}`);
-    },
-    onError: (err) => {
-      toast(err instanceof Error ? err.message : "Failed to create database", "error");
-    },
-  });
-
   const handleLogout = useCallback(async () => {
     await supabase.auth.signOut();
     router.push("/auth/login");
@@ -130,88 +79,73 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside aria-label="Sidebar navigation" className="flex h-full w-64 flex-col border-r bg-secondary/30">
+    <aside
+      aria-label="Sidebar navigation"
+      className="flex h-full w-[240px] flex-col border-r bg-[hsl(var(--sidebar))]"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between p-4">
-        <h2 className="text-lg font-semibold tracking-tight">Roka</h2>
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <h2 className="text-sm font-semibold tracking-tight text-[hsl(var(--sidebar-foreground))]">
+          Roka
+        </h2>
       </div>
 
-      <Separator />
-
-      {/* Quick actions */}
-      <div className="space-y-1 p-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-sm"
+      {/* Nav actions */}
+      <nav className="space-y-0.5 px-2 pb-1">
+        <button
           onClick={openSearch}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-[15px] w-[15px] text-[hsl(var(--sidebar-muted))]" />
           Search
           <kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             Cmd+K
           </kbd>
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-sm"
+        </button>
+        <button
           onClick={() => router.push("/workspace")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
         >
-          <Home className="h-4 w-4" />
+          <Home className="h-[15px] w-[15px] text-[hsl(var(--sidebar-muted))]" />
           Home
-        </Button>
-      </div>
+        </button>
+        <button
+          onClick={() => router.push("/workspace/settings")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+        >
+          <Settings className="h-[15px] w-[15px] text-[hsl(var(--sidebar-muted))]" />
+          Settings
+        </button>
+      </nav>
 
-      <Separator />
-
-      {/* Create buttons */}
-      <div className="flex gap-1 p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex-1 justify-start gap-2 text-sm"
+      {/* Private section header with hover + */}
+      <div className="group flex items-center justify-between px-3 pt-4 pb-1">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Private
+        </span>
+        <button
           onClick={() => createPage.mutate()}
+          className="opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+          aria-label="New page"
         >
-          <Plus className="h-4 w-4" />
-          Page
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="flex-1 justify-start gap-2 text-sm"
-          onClick={() => createDatabase.mutate()}
-        >
-          <Database className="h-4 w-4" />
-          Database
-        </Button>
+          <Plus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+        </button>
       </div>
-
-      <Separator />
 
       {/* Page tree */}
-      <ScrollArea className="flex-1 p-2">
+      <ScrollArea className="flex-1 px-2">
         <WorkspaceTree pages={pages} />
       </ScrollArea>
 
-      <Separator />
-
       {/* Footer */}
-      <div className="space-y-1 p-2">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-sm"
-          onClick={() => router.push("/workspace/settings")}
-        >
-          <Settings className="h-4 w-4" />
-          Settings
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-2 text-sm text-muted-foreground"
+      <div className="px-3 py-2">
+        <button
           onClick={handleLogout}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[12px] text-[hsl(var(--sidebar-muted))] transition-colors duration-150 hover:text-[hsl(var(--sidebar-foreground))]"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-3.5 w-3.5" />
           Sign out
-        </Button>
+        </button>
       </div>
     </aside>
   );
