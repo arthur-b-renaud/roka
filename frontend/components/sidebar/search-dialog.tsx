@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { api } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ import type { SearchResult } from "@/lib/types/database";
 
 export function SearchDialog() {
   const router = useRouter();
-  const supabase = useSupabase();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -43,21 +42,18 @@ export function SearchDialog() {
 
     const timer = setTimeout(async () => {
       setLoading(true);
-
-      const { data, error } = await supabase.rpc("search_nodes", {
-        search_query: query,
-        result_limit: 20,
-      });
-
-      if (!error && data) {
+      try {
+        const data = await api.search(query, 20);
         setResults(data as SearchResult[]);
         setSelectedIndex(0);
+      } catch {
+        setResults([]);
       }
       setLoading(false);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, supabase]);
+  }, [query]);
 
   const navigateToResult = useCallback(
     (result: SearchResult) => {
@@ -68,7 +64,6 @@ export function SearchDialog() {
     [router]
   );
 
-  // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "ArrowDown") {

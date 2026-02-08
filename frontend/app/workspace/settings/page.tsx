@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useAppSettings, useUpdateAppSettings } from "@/lib/hooks/use-app-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,7 @@ import { Settings, User, Key, Bot, Eye, EyeOff, Check, AlertCircle, Mail } from 
 import { PROVIDERS } from "@/lib/constants/providers";
 
 export default function SettingsPage() {
-  const supabase = useSupabase();
-  const [email, setEmail] = useState("");
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -36,26 +35,18 @@ export default function SettingsPage() {
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [smtpMessage, setSmtpMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? "");
-    });
-  }, [supabase]);
-
   // Load current LLM + SMTP settings from DB
-  useEffect(() => {
-    if (appSettings) {
-      if (appSettings.llm_provider) setProvider(appSettings.llm_provider);
-      if (appSettings.llm_model) setModel(appSettings.llm_model);
-      if (appSettings.llm_api_base) setApiBase(appSettings.llm_api_base);
-      // API key is secret -- we can't read it from anon.
-      if (appSettings.smtp_host) setSmtpHost(appSettings.smtp_host);
-      if (appSettings.smtp_port) setSmtpPort(appSettings.smtp_port);
-      if (appSettings.smtp_user) setSmtpUser(appSettings.smtp_user);
-      if (appSettings.smtp_from_email) setSmtpFromEmail(appSettings.smtp_from_email);
-      // smtp_password is secret -- user re-enters to change.
-    }
-  }, [appSettings]);
+  const [initialized, setInitialized] = useState(false);
+  if (appSettings && !initialized) {
+    if (appSettings.llm_provider) setProvider(appSettings.llm_provider);
+    if (appSettings.llm_model) setModel(appSettings.llm_model);
+    if (appSettings.llm_api_base) setApiBase(appSettings.llm_api_base);
+    if (appSettings.smtp_host) setSmtpHost(appSettings.smtp_host);
+    if (appSettings.smtp_port) setSmtpPort(appSettings.smtp_port);
+    if (appSettings.smtp_user) setSmtpUser(appSettings.smtp_user);
+    if (appSettings.smtp_from_email) setSmtpFromEmail(appSettings.smtp_from_email);
+    setInitialized(true);
+  }
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,15 +59,18 @@ export default function SettingsPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword,
+    const res = await fetch("/api/auth/update-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
     });
 
-    if (error) {
-      setMessage(error.message);
-    } else {
+    if (res.ok) {
       setMessage("Password updated successfully");
       (e.target as HTMLFormElement).reset();
+    } else {
+      const data = await res.json();
+      setMessage(data.error || "Failed to update password");
     }
     setLoading(false);
   };
@@ -93,7 +87,6 @@ export default function SettingsPage() {
       { key: "llm_configured", value: hasKey ? "true" : "false" },
     ];
 
-    // Only update API key if user entered a new one
     if (apiKey.trim()) {
       settingsToUpdate.push({ key: "llm_api_key", value: apiKey, is_secret: true });
     }
@@ -101,7 +94,7 @@ export default function SettingsPage() {
     try {
       await updateSettings.mutateAsync(settingsToUpdate);
       setLlmMessage("LLM settings saved");
-      setApiKey(""); // Clear after save
+      setApiKey("");
     } catch {
       setLlmMessage("Failed to save settings");
     }
@@ -396,7 +389,7 @@ export default function SettingsPage() {
         </h2>
         <div className="space-y-2">
           <Label>Email</Label>
-          <Input value={email} disabled className="max-w-sm" />
+          <Input value={session?.user?.email ?? ""} disabled className="max-w-sm" />
         </div>
       </section>
 

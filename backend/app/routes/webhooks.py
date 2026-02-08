@@ -7,7 +7,7 @@ import secrets
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.db import get_supabase, get_pool
+from app.db import get_pool
 from app.config import settings
 
 router = APIRouter()
@@ -21,7 +21,7 @@ class WebhookPayload(BaseModel):
     subject: Optional[str] = None
     content_text: Optional[str] = None
     raw_payload: dict = Field(default_factory=dict)
-    auto_triage: bool = True  # Auto-create agent task for inbound
+    auto_triage: bool = True
 
 
 @router.post("/ingest")
@@ -42,42 +42,45 @@ async def ingest_webhook(
                 detail="Invalid webhook secret",
             )
 
-    sb = get_supabase()
+    pool = get_pool()
 
     # Resolve entity by email if provided
     entity_id = None
     if payload.from_email:
-        result = sb.table("entities").select("id").contains(
-            "resolution_keys", [payload.from_email]
-        ).execute()
-        if result.data:
-            entity_id = result.data[0]["id"]
+        row = await pool.fetchrow(
+            "SELECT id FROM entities WHERE resolution_keys @> $1::jsonb",
+            json.dumps([payload.from_email]),
+        )
+        if row:
+            entity_id = str(row["id"])
         else:
-            # Create new entity
-            new_entity = sb.table("entities").insert({
-                "display_name": payload.from_email,
-                "type": "person",
-                "resolution_keys": [payload.from_email],
-            }).execute()
-            if new_entity.data:
-                entity_id = new_entity.data[0]["id"]
+            new_row = await pool.fetchrow(
+                """INSERT INTO entities (display_name, type, resolution_keys)
+                   VALUES ($1, 'person', $2::jsonb)
+                   RETURNING id""",
+                payload.from_email,
+                json.dumps([payload.from_email]),
+            )
+            if new_row:
+                entity_id = str(new_row["id"])
 
     # Persist to communications
-    comm_result = sb.table("communications").insert({
-        "channel": payload.channel,
-        "direction": payload.direction,
-        "from_entity_id": entity_id,
-        "subject": payload.subject,
-        "content_text": payload.content_text,
-        "raw_payload": payload.raw_payload,
-    }).execute()
+    await pool.execute(
+        """INSERT INTO communications
+           (channel, direction, from_entity_id, subject, content_text, raw_payload)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb)""",
+        payload.channel,
+        payload.direction,
+        entity_id,
+        payload.subject,
+        payload.content_text,
+        json.dumps(payload.raw_payload),
+    )
 
     # Auto-create agent task for inbound triage
     task_id = None
     if payload.auto_triage and payload.direction == "inbound":
         try:
-            pool = get_pool()
-            # Find any workspace owner to assign the task to
             owner_row = await pool.fetchrow(
                 "SELECT owner_id FROM nodes ORDER BY created_at ASC LIMIT 1"
             )
@@ -101,7 +104,7 @@ async def ingest_webhook(
                         "prompt": prompt,
                         "source": "webhook",
                         "channel": payload.channel,
-                        "entity_id": str(entity_id) if entity_id else None,
+                        "entity_id": entity_id,
                     }),
                 )
                 if task_row:

@@ -94,9 +94,9 @@ if ! docker compose version &>/dev/null; then
   exit 1
 fi
 
-# ── Install python3 + openssl + git if missing ───────────────
+# ── Install openssl + git if missing ─────────────────────────
 APT_UPDATED=false
-for pkg in python3 openssl git; do
+for pkg in openssl git; do
   if ! need "$pkg"; then
     if [ "$APT_UPDATED" = false ]; then
       apt-get update -qq
@@ -154,20 +154,8 @@ fi
 info "Writing infra/Caddyfile..."
 cat > infra/Caddyfile <<CADDYEOF
 ${CADDY_HOST} {
-    handle /auth/v1/* {
-        reverse_proxy kong:8000
-    }
-    handle /rest/v1/* {
-        reverse_proxy kong:8000
-    }
-    handle /realtime/v1/* {
-        reverse_proxy kong:8000
-    }
-    handle /storage/v1/* {
-        reverse_proxy kong:8000
-    }
-    handle /pg/* {
-        reverse_proxy kong:8000
+    handle /api/webhooks/* {
+        reverse_proxy backend:8100
     }
     handle {
         reverse_proxy frontend:3000
@@ -220,5 +208,4 @@ fi
 echo ""
 ok "Logs:    cd $INSTALL_DIR/infra && docker compose logs -f"
 ok "Stop:    cd $INSTALL_DIR/infra && docker compose down"
-ok "Backups: POSTGRES_PASSWORD=<see infra/.env> $INSTALL_DIR/infra/backup/backup.sh"
 echo ""

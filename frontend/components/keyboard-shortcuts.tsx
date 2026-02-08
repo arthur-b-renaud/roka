@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { api } from "@/lib/api";
 import type { DbNode } from "@/lib/types/database";
 
 /**
@@ -13,26 +13,16 @@ import type { DbNode } from "@/lib/types/database";
  */
 export function KeyboardShortcuts() {
   const router = useRouter();
-  const supabase = useSupabase();
   const queryClient = useQueryClient();
 
   const createPage = useMutation({
     mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { data, error } = await supabase
-        .from("nodes")
-        .insert({
-          owner_id: user.id,
-          type: "page",
-          title: "Untitled",
-          content: [],
-          properties: {},
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as DbNode;
+      return api.nodes.create({
+        type: "page",
+        title: "Untitled",
+        content: [],
+        properties: {},
+      }) as Promise<DbNode>;
     },
     onSuccess: (node) => {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });

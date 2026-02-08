@@ -75,11 +75,15 @@ export const viewFilterSchema = z.object({
   value: z.unknown().optional(),
 });
 
+export const viewTypeSchema = z.enum(["table", "board"]);
+
 export const viewConfigSchema = z.object({
+  viewType: viewTypeSchema.default("table"),
   sorts: z.array(viewSortSchema).default([]),
   filters: z.array(viewFilterSchema).default([]),
   columnOrder: z.array(z.string()).default([]),
   hiddenColumns: z.array(z.string()).default([]),
+  groupBy: z.string().optional(), // column key for board grouping
 });
 
 export const dbDatabaseViewSchema = z.object({
@@ -121,6 +125,7 @@ export type DbDatabaseDefinition = z.infer<typeof dbDatabaseDefinitionSchema>;
 export type SchemaColumn = z.infer<typeof schemaColumnSchema>;
 export type ViewSort = z.infer<typeof viewSortSchema>;
 export type ViewFilter = z.infer<typeof viewFilterSchema>;
+export type ViewType = z.infer<typeof viewTypeSchema>;
 export type ViewConfig = z.infer<typeof viewConfigSchema>;
 export type DbDatabaseView = z.infer<typeof dbDatabaseViewSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;

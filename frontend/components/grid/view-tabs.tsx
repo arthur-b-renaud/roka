@@ -8,7 +8,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Plus,
   MoreHorizontal,
@@ -16,17 +22,27 @@ import {
   Copy,
   Trash2,
   Table2,
+  Columns3,
 } from "lucide-react";
-import type { DbDatabaseView } from "@/lib/types/database";
+import type { DbDatabaseView, ViewType } from "@/lib/types/database";
 
 interface ViewTabsProps {
   views: DbDatabaseView[];
   activeViewId: string | null;
   onSelectView: (viewId: string) => void;
-  onCreateView: () => void;
+  onCreateView: (viewType: ViewType) => void;
   onRenameView: (viewId: string, name: string) => void;
   onDuplicateView: (viewId: string) => void;
   onDeleteView: (viewId: string) => void;
+}
+
+function getViewIcon(viewType: string) {
+  switch (viewType) {
+    case "board":
+      return <Columns3 className="h-3.5 w-3.5" />;
+    default:
+      return <Table2 className="h-3.5 w-3.5" />;
+  }
 }
 
 export function ViewTabs({
@@ -40,6 +56,7 @@ export function ViewTabs({
 }: ViewTabsProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   const startRename = (view: DbDatabaseView) => {
     setEditingId(view.id);
@@ -59,6 +76,7 @@ export function ViewTabs({
       {views.map((view) => {
         const isActive = view.id === activeViewId;
         const isEditing = editingId === view.id;
+        const viewType = view.view_config?.viewType ?? "table";
 
         return (
           <div key={view.id} className="flex items-center">
@@ -87,7 +105,7 @@ export function ViewTabs({
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Table2 className="h-3 w-3" />
+                {getViewIcon(viewType)}
                 {view.name}
               </button>
             )}
@@ -113,13 +131,16 @@ export function ViewTabs({
                     Duplicate
                   </DropdownMenuItem>
                   {views.length > 1 && (
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => onDeleteView(view.id)}
-                    >
-                      <Trash2 className="mr-2 h-3.5 w-3.5" />
-                      Delete
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => onDeleteView(view.id)}
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Delete
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -128,15 +149,42 @@ export function ViewTabs({
         );
       })}
 
-      {/* Add view button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1 px-2 text-xs text-muted-foreground"
-        onClick={onCreateView}
-      >
-        <Plus className="h-3 w-3" />
-      </Button>
+      {/* Add view popover */}
+      <Popover open={addOpen} onOpenChange={setAddOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-44 p-1">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+            onClick={() => {
+              onCreateView("table");
+              setAddOpen(false);
+            }}
+          >
+            <Table2 className="h-4 w-4 text-muted-foreground" />
+            Table
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+            onClick={() => {
+              onCreateView("board");
+              setAddOpen(false);
+            }}
+          >
+            <Columns3 className="h-4 w-4 text-muted-foreground" />
+            Board
+          </button>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

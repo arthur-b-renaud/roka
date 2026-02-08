@@ -1,26 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSupabase } from "@/components/providers/supabase-provider";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { dbNodeSchema, type DbNode, type DbAgentTask } from "@/lib/types/database";
+import { api } from "@/lib/api";
 import { z } from "zod";
 
 const nodesArraySchema = z.array(dbNodeSchema);
 
 export function useRecentPages(userId: string | null) {
-  const supabase = useSupabase();
   return useQuery<DbNode[]>({
     queryKey: ["recent-pages", userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
-        .from("nodes")
-        .select("*")
-        .eq("owner_id", userId)
-        .in("type", ["page", "database"])
-        .is("parent_id", null)
-        .order("updated_at", { ascending: false })
-        .limit(9);
-      if (error) throw error;
+      const data = await api.nodes.list({
+        type: "page,database",
+        parentId: "null",
+        orderBy: "updated_at",
+        limit: "9",
+      });
       return nodesArraySchema.parse(data);
     },
     enabled: !!userId,
@@ -29,18 +25,14 @@ export function useRecentPages(userId: string | null) {
 }
 
 export function usePinnedPages(userId: string | null) {
-  const supabase = useSupabase();
   return useQuery<DbNode[]>({
     queryKey: ["pinned-pages", userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
-        .from("nodes")
-        .select("*")
-        .eq("owner_id", userId)
-        .eq("is_pinned", true)
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
+      const data = await api.nodes.list({
+        pinned: "true",
+        orderBy: "sort_order",
+      });
       return nodesArraySchema.parse(data);
     },
     enabled: !!userId,
@@ -49,7 +41,6 @@ export function usePinnedPages(userId: string | null) {
 }
 
 export function useCreateAgentTask() {
-  const supabase = useSupabase();
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
 
@@ -63,22 +54,14 @@ export function useCreateAgentTask() {
       nodeId?: string;
       prompt?: string;
     }) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
       const input: Record<string, unknown> = {};
-      if (nodeId) input.node_id = nodeId;
       if (prompt) input.prompt = prompt;
 
-      const { error } = await supabase.from("agent_tasks").insert({
-        owner_id: user.id,
+      await api.agentTasks.create({
         workflow,
-        node_id: nodeId ?? null,
+        nodeId: nodeId ?? null,
         input,
       });
-      if (error) throw error;
     },
     // Optimistic update: show the task immediately as "pending"
     onMutate: async ({ workflow, nodeId, prompt }) => {
@@ -112,7 +95,6 @@ export function useCreateAgentTask() {
       return { previous };
     },
     onError: (_err, _vars, context) => {
-      // Rollback on error
       if (context?.previous) {
         queryClient.setQueryData(["agent-tasks", userId], context.previous);
       }

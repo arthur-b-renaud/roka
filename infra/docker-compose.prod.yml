@@ -1,8 +1,8 @@
-# Production overrides: built images, Caddy reverse proxy, no Studio, resource limits.
+# Production overrides: built images, Caddy reverse proxy, resource limits.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 services:
-  # ── Caddy reverse proxy (HTTPS + routing) ──────────────────
+  # Caddy reverse proxy (HTTPS + routing)
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -16,24 +16,12 @@ services:
       - caddy-config:/config
     depends_on:
       - frontend
-      - kong
     deploy:
       resources:
         limits:
           memory: 128M
           cpus: "0.25"
 
-  # Remove Studio in production
-  studio:
-    profiles: ["disabled"]
-
-  studio-proxy:
-    profiles: ["disabled"]
-
-  # Caddy is the public entry point. Base compose still binds frontend:3000,
-  # kong:8080, db:5432, backend:8100 to the host -- the install script
-  # configures UFW to only allow 22/80/443 so those are not reachable
-  # from the internet. For local `make prod` usage they remain accessible.
   frontend:
     build:
       context: ../frontend
@@ -41,6 +29,9 @@ services:
     volumes: []
     environment:
       NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
     deploy:
       resources:
         limits:
@@ -65,13 +56,6 @@ services:
         limits:
           memory: 2G
           cpus: "1.0"
-
-  kong:
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.25"
 
 volumes:
   caddy-data:

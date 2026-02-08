@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Roka -- Zero-config bootstrap
-# Generates all secrets and writes infra/.env with no user input.
-# Set ROKA_DOMAIN to a domain or IP to configure for production.
+# Generates secrets and writes infra/.env.
+# Set ROKA_DOMAIN to configure for production.
 # Usage:  cd infra && ./setup.sh && docker compose up -d
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,44 +17,18 @@ fi
 echo "Generating secrets..."
 
 POSTGRES_PASSWORD=$(openssl rand -hex 32)
-JWT_SECRET=$(openssl rand -hex 32)
-DASHBOARD_PASSWORD=$(openssl rand -hex 16)
+NEXTAUTH_SECRET=$(openssl rand -hex 32)
 
-# Derive Supabase JWT tokens from JWT_SECRET using Python (required for backend anyway)
-read -r ANON_KEY SERVICE_ROLE_KEY <<< "$(python3 -c "
-import hmac, hashlib, base64, json, sys
-
-def b64url(data):
-    return base64.urlsafe_b64encode(data).rstrip(b'=').decode()
-
-secret = '${JWT_SECRET}'
-compact = {'separators': (',', ':')}
-
-header = b64url(json.dumps({'alg':'HS256','typ':'JWT'}, **compact).encode())
-
-for role in ['anon', 'service_role']:
-    payload = b64url(json.dumps({'iss':'supabase','role':role,'iat':1700000000,'exp':2000000000}, **compact).encode())
-    msg = f'{header}.{payload}'.encode()
-    sig = b64url(hmac.new(secret.encode(), msg, hashlib.sha256).digest())
-    sys.stdout.write(f'{header}.{payload}.{sig} ')
-")"
-
-# Determine public URLs based on ROKA_DOMAIN env var
+# Determine public URL based on ROKA_DOMAIN env var
 if [ -n "${ROKA_DOMAIN:-}" ]; then
-  # IP check: all digits and dots
   if echo "$ROKA_DOMAIN" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
     PUBLIC_URL="http://${ROKA_DOMAIN}"
   else
     PUBLIC_URL="https://${ROKA_DOMAIN}"
   fi
-  SITE_URL="$PUBLIC_URL"
-  SUPABASE_EXT_URL="$PUBLIC_URL"
-  ALLOW_LIST="${PUBLIC_URL}/**"
+  NEXTAUTH_URL="$PUBLIC_URL"
 else
-  PUBLIC_URL="http://localhost:8080"
-  SITE_URL="http://localhost:3000"
-  SUPABASE_EXT_URL="http://localhost:8080"
-  ALLOW_LIST="http://localhost:3000/**"
+  NEXTAUTH_URL="http://localhost:3000"
 fi
 
 echo "Writing ${ENV_FILE} ..."
@@ -65,61 +39,27 @@ cat > "$ENV_FILE" <<ENVEOF
 ############
 
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-JWT_SECRET=${JWT_SECRET}
-ANON_KEY=${ANON_KEY}
-SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
-DASHBOARD_USERNAME=supabase
-DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
 
 ############
 # Database
 ############
 
-POSTGRES_HOST=db
+POSTGRES_USER=postgres
 POSTGRES_DB=postgres
-POSTGRES_PORT=5432
 
 ############
-# Supabase URLs (internal Docker network)
+# Auth (NextAuth.js)
 ############
 
-SUPABASE_URL=http://kong:8000
-SUPABASE_PUBLIC_URL=${SUPABASE_EXT_URL}
-API_EXTERNAL_URL=${SUPABASE_EXT_URL}
-
-############
-# Auth (GoTrue)
-############
-
-GOTRUE_SITE_URL=${SITE_URL}
-GOTRUE_URI_ALLOW_LIST=${ALLOW_LIST}
-GOTRUE_DISABLE_SIGNUP=false
-GOTRUE_JWT_EXP=3600
-GOTRUE_JWT_DEFAULT_GROUP_NAME=authenticated
-GOTRUE_MAILER_AUTOCONFIRM=true
-GOTRUE_SMS_AUTOCONFIRM=true
-
-############
-# Studio
-############
-
-STUDIO_DEFAULT_ORGANIZATION=Roka
-STUDIO_DEFAULT_PROJECT=Roka
-STUDIO_PORT=8000
-
-############
-# Frontend
-############
-
-NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_EXT_URL}
-NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
+NEXTAUTH_URL=${NEXTAUTH_URL}
 
 ############
 # Backend
 ############
 
 BACKEND_PORT=8100
-DATABASE_URL=postgresql://supabase_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
 ENVEOF
 
 echo ""
@@ -128,7 +68,7 @@ echo ""
 if [ -n "${ROKA_DOMAIN:-}" ]; then
   echo "Next steps:"
   echo "  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build"
-  echo "  Open ${SITE_URL}"
+  echo "  Open ${NEXTAUTH_URL}"
 else
   echo "Next steps:"
   echo "  docker compose up -d"

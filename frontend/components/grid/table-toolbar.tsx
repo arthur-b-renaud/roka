@@ -16,8 +16,9 @@ import {
   ArrowUpNarrowWide,
   ArrowDownWideNarrow,
   Plus,
+  Columns3,
 } from "lucide-react";
-import type { SchemaColumn, ViewSort, ViewFilter } from "@/lib/types/database";
+import type { SchemaColumn, ViewSort, ViewFilter, ViewType } from "@/lib/types/database";
 
 // Operators per column type
 const OPERATORS_BY_TYPE: Record<string, { value: string; label: string }[]> = {
@@ -77,6 +78,9 @@ interface TableToolbarProps {
   filters: ViewFilter[];
   onSortsChange: (sorts: ViewSort[]) => void;
   onFiltersChange: (filters: ViewFilter[]) => void;
+  viewType?: ViewType;
+  groupBy?: string;
+  onGroupByChange?: (groupBy: string | undefined) => void;
 }
 
 export function TableToolbar({
@@ -85,19 +89,15 @@ export function TableToolbar({
   filters,
   onSortsChange,
   onFiltersChange,
+  viewType = "table",
+  groupBy,
+  onGroupByChange,
 }: TableToolbarProps) {
   const hasSorts = sorts.length > 0;
   const hasFilters = filters.length > 0;
 
   return (
     <div className="flex items-center gap-2 px-1">
-      {/* Sort control */}
-      <SortControl
-        columns={columns}
-        sorts={sorts}
-        onSortsChange={onSortsChange}
-      />
-
       {/* Filter control */}
       <FilterControl
         columns={columns}
@@ -105,36 +105,20 @@ export function TableToolbar({
         onFiltersChange={onFiltersChange}
       />
 
-      {/* Active sort pills */}
-      {hasSorts && (
-        <div className="flex items-center gap-1">
-          {sorts.map((s, i) => {
-            const col = columns.find((c) => c.key === s.columnKey);
-            return (
-              <Badge
-                key={`sort-${i}`}
-                variant="secondary"
-                className="gap-1 px-2 py-0.5 text-xs font-normal"
-              >
-                {s.direction === "asc" ? (
-                  <ArrowUpNarrowWide className="h-3 w-3" />
-                ) : (
-                  <ArrowDownWideNarrow className="h-3 w-3" />
-                )}
-                {col?.name ?? s.columnKey}
-                <button
-                  type="button"
-                  onClick={() =>
-                    onSortsChange(sorts.filter((_, idx) => idx !== i))
-                  }
-                  className="ml-0.5 rounded-sm hover:bg-muted-foreground/20"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            );
-          })}
-        </div>
+      {/* Sort control */}
+      <SortControl
+        columns={columns}
+        sorts={sorts}
+        onSortsChange={onSortsChange}
+      />
+
+      {/* Group by control (board only) */}
+      {viewType === "board" && onGroupByChange && (
+        <GroupByControl
+          columns={columns}
+          groupBy={groupBy}
+          onGroupByChange={onGroupByChange}
+        />
       )}
 
       {/* Active filter pills */}
@@ -171,6 +155,38 @@ export function TableToolbar({
           })}
         </div>
       )}
+
+      {/* Active sort pills */}
+      {hasSorts && (
+        <div className="flex items-center gap-1">
+          {sorts.map((s, i) => {
+            const col = columns.find((c) => c.key === s.columnKey);
+            return (
+              <Badge
+                key={`sort-${i}`}
+                variant="secondary"
+                className="gap-1 px-2 py-0.5 text-xs font-normal"
+              >
+                {s.direction === "asc" ? (
+                  <ArrowUpNarrowWide className="h-3 w-3" />
+                ) : (
+                  <ArrowDownWideNarrow className="h-3 w-3" />
+                )}
+                {col?.name ?? s.columnKey}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSortsChange(sorts.filter((_, idx) => idx !== i))
+                  }
+                  className="ml-0.5 rounded-sm hover:bg-muted-foreground/20"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -192,7 +208,6 @@ function SortControl({
 
   const addSort = () => {
     if (!selectedCol) return;
-    // Replace existing sort on same column
     const filtered = sorts.filter((s) => s.columnKey !== selectedCol);
     onSortsChange([...filtered, { columnKey: selectedCol, direction }]);
     setSelectedCol("");
@@ -290,7 +305,6 @@ function FilterControl({
   const operators = getOperators(selectedColumn?.type ?? "text");
   const needsValue = operator ? operatorNeedsValue(operator) : true;
 
-  // For select columns, show option picker instead of text input
   const isSelectColumn = selectedColumn?.type === "select";
 
   const addFilter = () => {
@@ -413,6 +427,63 @@ function FilterControl({
             </Button>
           </>
         )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// --- Group by control (board view) ---
+
+function GroupByControl({
+  columns,
+  groupBy,
+  onGroupByChange,
+}: {
+  columns: SchemaColumn[];
+  groupBy?: string;
+  onGroupByChange: (groupBy: string | undefined) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectColumns = columns.filter((c) => c.type === "select");
+  const activeCol = columns.find((c) => c.key === groupBy);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs">
+          <Columns3 className="h-3.5 w-3.5" />
+          Group
+          {activeCol && (
+            <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] font-normal">
+              {activeCol.name}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 p-1">
+        <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+          Group by property
+        </p>
+        {selectColumns.length === 0 && (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground italic">
+            No select properties available
+          </p>
+        )}
+        {selectColumns.map((col) => (
+          <button
+            key={col.key}
+            type="button"
+            className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent ${
+              groupBy === col.key ? "bg-accent/50 font-medium" : ""
+            }`}
+            onClick={() => {
+              onGroupByChange(col.key);
+              setOpen(false);
+            }}
+          >
+            {col.name}
+          </button>
+        ))}
       </PopoverContent>
     </Popover>
   );

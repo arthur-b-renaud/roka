@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, X } from "lucide-react";
 
 interface CellRendererProps {
   type: string;
@@ -36,6 +42,30 @@ export function CellRenderer({ type, value, options, onChange }: CellRendererPro
   }
 }
 
+// ─── Shared color palette for select options ──────────────────────
+
+export const SELECT_COLORS = [
+  { bg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-800 dark:text-blue-300", dot: "bg-blue-500" },
+  { bg: "bg-green-100 dark:bg-green-900/40", text: "text-green-800 dark:text-green-300", dot: "bg-green-500" },
+  { bg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-800 dark:text-amber-300", dot: "bg-amber-500" },
+  { bg: "bg-purple-100 dark:bg-purple-900/40", text: "text-purple-800 dark:text-purple-300", dot: "bg-purple-500" },
+  { bg: "bg-red-100 dark:bg-red-900/40", text: "text-red-800 dark:text-red-300", dot: "bg-red-500" },
+  { bg: "bg-pink-100 dark:bg-pink-900/40", text: "text-pink-800 dark:text-pink-300", dot: "bg-pink-500" },
+  { bg: "bg-cyan-100 dark:bg-cyan-900/40", text: "text-cyan-800 dark:text-cyan-300", dot: "bg-cyan-500" },
+  { bg: "bg-orange-100 dark:bg-orange-900/40", text: "text-orange-800 dark:text-orange-300", dot: "bg-orange-500" },
+];
+
+export function getSelectColor(index: number) {
+  return SELECT_COLORS[index % SELECT_COLORS.length];
+}
+
+export function getSelectColorForValue(value: string, options: string[]) {
+  const idx = options.indexOf(value);
+  return idx >= 0 ? getSelectColor(idx) : SELECT_COLORS[0];
+}
+
+// ─── Text Cell ────────────────────────────────────────────────────
+
 function TextCell({
   value,
   onChange,
@@ -47,7 +77,6 @@ function TextCell({
   const [localVal, setLocalVal] = useState(value ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync from external
   useEffect(() => {
     if (!editing) setLocalVal(value ?? "");
   }, [value, editing]);
@@ -90,6 +119,8 @@ function TextCell({
     />
   );
 }
+
+// ─── Number Cell ──────────────────────────────────────────────────
 
 function NumberCell({
   value,
@@ -141,15 +172,7 @@ function NumberCell({
   );
 }
 
-const SELECT_COLORS = [
-  "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-  "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
-  "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
-];
+// ─── Select Cell (Popover-based) ──────────────────────────────────
 
 function SelectCell({
   value,
@@ -162,49 +185,41 @@ function SelectCell({
 }) {
   const [open, setOpen] = useState(false);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      setOpen(false);
-    }
-  };
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setOpen(!open);
-          }
-        }}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className="flex min-h-[1.5rem] w-full cursor-pointer items-center text-left hover:bg-accent/50 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {value ? (
-          <Badge
-            variant="outline"
-            className={`${SELECT_COLORS[options.indexOf(value) % SELECT_COLORS.length] ?? ""} border-0 text-xs font-medium`}
-          >
-            {value}
-          </Badge>
-        ) : (
-          <span className="text-sm text-muted-foreground/60 italic">Select...</span>
-        )}
-      </button>
-
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div role="listbox" onKeyDown={handleKeyDown} className="absolute left-0 z-20 mt-1 min-w-[140px] rounded-md border bg-popover p-1 shadow-lg">
-            {options.map((opt, i) => (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="flex min-h-[1.5rem] w-full cursor-pointer items-center text-left hover:bg-accent/50 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {value ? (() => {
+            const color = getSelectColorForValue(value, options);
+            return (
+              <Badge
+                variant="outline"
+                className={`${color.bg} ${color.text} border-0 text-xs font-medium`}
+              >
+                {value}
+              </Badge>
+            );
+          })() : (
+            <span className="text-sm text-muted-foreground/60 italic">Select...</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-48 p-1" sideOffset={4}>
+        <div role="listbox" className="space-y-0.5">
+          {options.map((opt, i) => {
+            const color = getSelectColor(i);
+            const isSelected = value === opt;
+            return (
               <button
                 key={opt}
                 type="button"
                 role="option"
-                aria-selected={value === opt}
+                aria-selected={isSelected}
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => {
                   onChange(opt);
@@ -213,33 +228,37 @@ function SelectCell({
               >
                 <Badge
                   variant="outline"
-                  className={`${SELECT_COLORS[i % SELECT_COLORS.length] ?? ""} border-0 text-xs`}
+                  className={`${color.bg} ${color.text} border-0 text-xs`}
                 >
                   {opt}
                 </Badge>
+                {isSelected && <Check className="ml-auto h-3.5 w-3.5 text-primary" />}
               </button>
-            ))}
-            {value && (
-              <>
-                <div className="my-1 h-px bg-border" />
-                <button
-                  type="button"
-                  className="flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={() => {
-                    onChange("");
-                    setOpen(false);
-                  }}
-                >
-                  Clear
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      )}
-    </div>
+            );
+          })}
+          {value && (
+            <>
+              <div className="my-1 h-px bg-border" />
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent"
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            </>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
+
+// ─── Date Cell ────────────────────────────────────────────────────
 
 function DateCell({
   value,
@@ -257,6 +276,8 @@ function DateCell({
     />
   );
 }
+
+// ─── Checkbox Cell ────────────────────────────────────────────────
 
 function CheckboxCell({
   value,

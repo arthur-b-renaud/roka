@@ -3,14 +3,14 @@
 import { memo, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useSupabase } from "@/components/providers/supabase-provider";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useRecentPages, usePinnedPages, useCreateAgentTask } from "@/lib/queries/nodes";
 import { useSetupComplete } from "@/lib/hooks/use-app-settings";
+import { useRealtime } from "@/lib/hooks/use-realtime";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-// Separator removed for cleaner visual hierarchy
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -36,29 +36,23 @@ const agentTasksArraySchema = z.array(dbAgentTaskSchema);
 
 export default function WorkspacePage() {
   const router = useRouter();
-  const supabase = useSupabase();
   const { userId } = useCurrentUser();
+  useRealtime(); // SSE: auto-invalidates agent-tasks on new_task events
 
   const { data: recentPages = [], isLoading: loadingRecent } = useRecentPages(userId);
   const { data: pinnedPages = [] } = usePinnedPages(userId);
   const createAgentTask = useCreateAgentTask();
 
-  // Fetch agent tasks with Supabase Realtime subscription
+  // Fetch agent tasks
   const { data: agentTasks = [] } = useQuery<DbAgentTask[]>({
     queryKey: ["agent-tasks", userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
-        .from("agent_tasks")
-        .select("*")
-        .eq("owner_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
+      const data = await api.agentTasks.list(10);
       return agentTasksArraySchema.parse(data);
     },
     enabled: !!userId,
-    refetchInterval: 10_000, // light fallback; realtime handles most updates
+    staleTime: 10_000,
   });
 
   const statusColors: Record<string, string> = useMemo(() => ({
@@ -85,12 +79,10 @@ export default function WorkspacePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-24 py-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
       </div>
 
-      {/* Agent Prompt */}
       {llmConfigured && (
         <section className="rounded-lg border px-4 py-3 space-y-2">
           <div className="flex gap-2">
@@ -119,7 +111,6 @@ export default function WorkspacePage() {
         </section>
       )}
 
-      {/* Quick Actions */}
       <TooltipProvider>
         <div className="flex gap-3">
           <Tooltip>
@@ -179,7 +170,6 @@ export default function WorkspacePage() {
         </div>
       </TooltipProvider>
 
-      {/* Pinned Pages */}
       {pinnedPages.length > 0 && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
@@ -194,7 +184,6 @@ export default function WorkspacePage() {
         </section>
       )}
 
-      {/* Recent Pages */}
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           <Clock className="h-3.5 w-3.5" />
@@ -219,7 +208,6 @@ export default function WorkspacePage() {
         )}
       </section>
 
-      {/* Agent Tasks */}
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           <Bot className="h-3.5 w-3.5" />

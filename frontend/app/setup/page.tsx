@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { signIn, useSession } from "next-auth/react";
 import { useSetupComplete, useUpdateAppSettings } from "@/lib/hooks/use-app-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ type Step = "account" | "llm" | "done";
 
 export default function SetupPage() {
   const router = useRouter();
-  const supabase = useSupabase();
+  const { data: session } = useSession();
   const { setupComplete, isLoading } = useSetupComplete();
   const updateSettings = useUpdateAppSettings();
 
@@ -43,14 +43,12 @@ export default function SetupPage() {
     }
   }, [isLoading, setupComplete, router]);
 
-  // Check if user is already signed in (skip to LLM step)
+  // If user is already signed in, skip to LLM step
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setStep("llm");
-      }
-    });
-  }, [supabase]);
+    if (session?.user) {
+      setStep("llm");
+    }
+  }, [session]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +64,28 @@ export default function SetupPage() {
     }
 
     setAuthLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
 
-    if (error) {
-      setAuthError(error.message);
+    const res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setAuthError(data.error || "Signup failed");
+      setAuthLoading(false);
+      return;
+    }
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    if (result?.error) {
+      setAuthError("Account created but sign-in failed");
       setAuthLoading(false);
       return;
     }

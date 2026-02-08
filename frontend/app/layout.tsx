@@ -2,10 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
-import { SupabaseProvider } from "@/components/providers/supabase-provider";
+import { SessionProvider } from "@/components/providers/session-provider";
 import { ToastProvider } from "@/components/ui/toast";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
   title: "Roka",
@@ -26,12 +30,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen`}>
-        <SupabaseProvider>
+      <body className={`${inter.variable} font-sans min-h-screen`}>
+        <SessionProvider>
           <QueryProvider>
             <ToastProvider>{children}</ToastProvider>
           </QueryProvider>
-        </SupabaseProvider>
+        </SessionProvider>
       </body>
     </html>
   );

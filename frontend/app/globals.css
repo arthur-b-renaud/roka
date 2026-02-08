@@ -97,3 +97,49 @@
 ::selection {
   background: hsl(var(--accent));
 }
+
+/* BlockNote editor overrides — remove Mantine shadow/border/background */
+.bn-container {
+  --bn-colors-editor-background: transparent !important;
+  --bn-shadow-medium: none !important;
+  --bn-shadow-light: none !important;
+  font-family: inherit;
+}
+
+.bn-editor {
+  background-color: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Override BlockNote heading --level CSS variable (Block.css uses 3em/2em/1.3em) */
+[data-content-type="heading"] {
+  --level: 1.875em !important;
+}
+[data-content-type="heading"][data-level="2"] {
+  --level: 1.5em !important;
+}
+[data-content-type="heading"][data-level="3"] {
+  --level: 1.25em !important;
+}
+
+/* Side menu heights to match reduced heading sizes */
+.bn-side-menu[data-block-type="heading"][data-level="1"] {
+  height: 48px !important;
+}
+.bn-side-menu[data-block-type="heading"][data-level="2"] {
+  height: 40px !important;
+}
+.bn-side-menu[data-block-type="heading"][data-level="3"] {
+  height: 34px !important;
+}
+
+/* Editor body text */
+.bn-editor .bn-block-content {
+  font-size: 1rem;
+  line-height: 1.6;
+  letter-spacing: -0.003em;
+}

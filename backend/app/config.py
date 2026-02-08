@@ -13,10 +13,6 @@ class Settings(BaseSettings):
     db_pool_min: int = 2
     db_pool_max: int = 10
 
-    # Supabase (service-role -- god mode)
-    supabase_url: str = "http://kong:8000"
-    supabase_service_role_key: str = ""
-
     # CORS -- comma-separated origins, e.g. "http://localhost:3000,https://roka.example.com"
     cors_origins: str = "http://localhost:3000"
 

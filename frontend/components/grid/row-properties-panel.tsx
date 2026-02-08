@@ -1,37 +1,27 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { api } from "@/lib/api";
 import { CellRenderer } from "./cell-renderer";
+import { AddColumnDialog } from "./add-column-dialog";
 import { Separator } from "@/components/ui/separator";
+import { Plus } from "lucide-react";
 import type { DbNode, DbDatabaseDefinition, SchemaColumn } from "@/lib/types/database";
 
 interface RowPropertiesPanelProps {
-  node: DbNode; // the database_row node
+  node: DbNode;
 }
 
-/**
- * Displays editable property fields for a database_row, based on the
- * parent database's schema_config. Shown at the top of a row page,
- * just like Notion shows properties above the page editor.
- */
 export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
-  const supabase = useSupabase();
   const queryClient = useQueryClient();
+  const [showAddColumn, setShowAddColumn] = useState(false);
 
-  // Fetch parent database's schema
   const { data: dbDef } = useQuery<DbDatabaseDefinition | null>({
     queryKey: ["db-definition", node.parent_id],
     queryFn: async () => {
       if (!node.parent_id) return null;
-      const { data, error } = await supabase
-        .from("database_definitions")
-        .select("*")
-        .eq("node_id", node.parent_id)
-        .single();
-      if (error) return null;
-      return data as DbDatabaseDefinition;
+      return api.databaseDefinitions.get(node.parent_id);
     },
     enabled: !!node.parent_id,
   });
@@ -44,20 +34,24 @@ export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
         ...(node.properties as Record<string, unknown>),
         [key]: value,
       };
-      await supabase
-        .from("nodes")
-        .update({ properties })
-        .eq("id", node.id);
-      // Invalidate both the current node and the parent's row list
+      await api.nodes.update(node.id, { properties });
       queryClient.invalidateQueries({ queryKey: ["node", node.id] });
       if (node.parent_id) {
         queryClient.invalidateQueries({ queryKey: ["db-rows", node.parent_id] });
       }
     },
-    [supabase, queryClient, node]
+    [queryClient, node]
   );
 
-  if (schema.length === 0) return null;
+  const handleAddColumn = useCallback(
+    async (column: SchemaColumn) => {
+      if (!dbDef || !node.parent_id) return;
+      const newSchema = [...dbDef.schema_config, column];
+      await api.databaseDefinitions.update(node.parent_id, newSchema);
+      queryClient.invalidateQueries({ queryKey: ["db-definition", node.parent_id] });
+    },
+    [dbDef, queryClient, node.parent_id]
+  );
 
   return (
     <div className="mb-6">
@@ -79,8 +73,24 @@ export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
             </div>
           </div>
         ))}
+
+        <button
+          type="button"
+          onClick={() => setShowAddColumn(true)}
+          className="flex items-center gap-1.5 rounded px-1 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add a property
+        </button>
       </div>
       <Separator className="mt-6" />
+
+      <AddColumnDialog
+        open={showAddColumn}
+        onOpenChange={setShowAddColumn}
+        existingKeys={schema.map((c) => c.key)}
+        onAdd={handleAddColumn}
+      />
     </div>
   );
 }

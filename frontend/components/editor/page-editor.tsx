@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSupabase } from "@/components/providers/supabase-provider";
-import { useCreateBlockNote } from "@blocknote/react";
+import { api } from "@/lib/api";
+import {
+  useCreateBlockNote,
+  SideMenu,
+  SideMenuController,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/mantine";
 import type { Block } from "@blocknote/core";
 import "@blocknote/mantine/style.css";
+import { NotionDragHandleMenu } from "@/components/editor/drag-handle-menu";
 import type { DbNode } from "@/lib/types/database";
 
 /** Recursively extract plain text from BlockNote block array. */
@@ -31,11 +36,9 @@ interface PageEditorProps {
 }
 
 export function PageEditor({ node }: PageEditorProps) {
-  const supabase = useSupabase();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
-  // node.content is BlockNote Block[] serialized as JSON
   const initialContent =
     Array.isArray(node.content) && node.content.length > 0
       ? (node.content as Block[])
@@ -47,20 +50,15 @@ export function PageEditor({ node }: PageEditorProps) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const blocks = editor.document;
-      // Extract plain text from BlockNote blocks for search indexing
       const plainText = extractBlockText(blocks);
       const searchText = `${node.title} ${plainText}`.slice(0, 10000);
-      await supabase
-        .from("nodes")
-        .update({
-          content: JSON.parse(JSON.stringify(blocks)),
-          search_text: searchText,
-        })
-        .eq("id", node.id);
+      await api.nodes.update(node.id, {
+        content: JSON.parse(JSON.stringify(blocks)),
+        searchText,
+      });
     }, 1000);
-  }, [editor, supabase, node.id, node.title]);
+  }, [editor, node.id, node.title]);
 
-  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -95,7 +93,14 @@ export function PageEditor({ node }: PageEditorProps) {
         editor={editor}
         onChange={handleChange}
         theme={theme}
-      />
+        sideMenu={false}
+      >
+        <SideMenuController
+          sideMenu={(props) => (
+            <SideMenu {...props} dragHandleMenu={NotionDragHandleMenu} />
+          )}
+        />
+      </BlockNoteView>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { api } from "@/lib/api";
 import { PageEditor } from "@/components/editor/page-editor";
 import { PageHeader } from "@/components/editor/page-header";
 import { Breadcrumbs } from "@/components/editor/breadcrumbs";
@@ -16,17 +16,11 @@ export default function NodePage() {
   const params = useParams();
   const rawNodeId = params.nodeId as string;
   const nodeId = uuidSchema.safeParse(rawNodeId).success ? rawNodeId : "";
-  const supabase = useSupabase();
 
   const { data: node, isLoading, error } = useQuery<DbNode>({
     queryKey: ["node", nodeId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("nodes")
-        .select("*")
-        .eq("id", nodeId)
-        .single();
-      if (error) throw error;
+      const data = await api.nodes.get(nodeId);
       return dbNodeSchema.parse(data);
     },
     enabled: !!nodeId,
@@ -34,7 +28,7 @@ export default function NodePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 px-24 pt-4">
+      <div className="mx-auto max-w-5xl space-y-4 px-8 pt-4">
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-6 w-full" />
@@ -53,7 +47,7 @@ export default function NodePage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-24 pt-4 pb-8">
+    <div className="mx-auto max-w-5xl px-8 pt-4 pb-8">
       <Breadcrumbs nodeId={nodeId} />
       <EditorErrorBoundary>
         {node.type === "database" ? (
