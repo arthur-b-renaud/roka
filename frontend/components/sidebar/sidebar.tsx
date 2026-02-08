@@ -102,6 +102,12 @@ export function Sidebar() {
           ],
         });
       if (defErr) throw defErr;
+
+      // Create default view
+      await supabase
+        .from("database_views")
+        .insert({ database_id: node.id, name: "Default view", view_config: {} });
+
       return node as DbNode;
     },
     onSuccess: (node) => {

@@ -9,7 +9,11 @@ from app.db import get_pool
 
 
 @tool
-async def search_knowledge_base(query: str, limit: int = 10) -> str:
+async def search_knowledge_base(
+    query: str,
+    limit: int = 10,
+    owner_id: Optional[str] = None,
+) -> str:
     """Search across all pages and databases in the workspace using full-text search.
 
     Use this to find relevant content by keywords or topics.
@@ -18,7 +22,11 @@ async def search_knowledge_base(query: str, limit: int = 10) -> str:
     Args:
         query: Search terms (natural language or keywords).
         limit: Max results to return (default 10).
+        owner_id: UUID of the owner. Required (injected by agent context).
     """
+    if not owner_id:
+        return "Error: owner_id is required to search."
+
     pool = get_pool()
     rows = await pool.fetch("""
         SELECT n.id, n.title, n.type::text, n.parent_id,
@@ -27,10 +35,11 @@ async def search_knowledge_base(query: str, limit: int = 10) -> str:
                ts_rank(to_tsvector('english', n.search_text),
                    plainto_tsquery('english', $1)) AS rank
         FROM nodes n
-        WHERE to_tsvector('english', n.search_text) @@ plainto_tsquery('english', $1)
+        WHERE n.owner_id = $3
+          AND to_tsvector('english', n.search_text) @@ plainto_tsquery('english', $1)
         ORDER BY rank DESC
         LIMIT $2
-    """, query, limit)
+    """, query, limit, uuid.UUID(owner_id))
 
     if not rows:
         # Fallback to trigram fuzzy search
@@ -39,10 +48,11 @@ async def search_knowledge_base(query: str, limit: int = 10) -> str:
                    LEFT(n.search_text, 200) AS snippet,
                    similarity(n.search_text, $1) AS rank
             FROM nodes n
-            WHERE n.search_text %% $1
+            WHERE n.owner_id = $3
+              AND n.search_text %% $1
             ORDER BY rank DESC
             LIMIT $2
-        """, query, limit)
+        """, query, limit, uuid.UUID(owner_id))
 
     if not rows:
         return "No results found."

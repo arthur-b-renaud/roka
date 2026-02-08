@@ -53,7 +53,7 @@ async def get_smtp_config() -> SMTPConfig:
         return _cache
 
     async with _get_lock():
-        now = time.monotonic()
+        # Re-check inside lock
         if _cache is not None and (now - _cache_ts) < CACHE_TTL:
             return _cache
 

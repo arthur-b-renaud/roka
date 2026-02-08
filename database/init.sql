@@ -174,6 +174,24 @@ CREATE TABLE database_definitions (
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Database views: saved sort/filter/column-order per database
+CREATE TABLE database_views (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    database_id     UUID NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL DEFAULT 'Default view',
+    view_config     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- view_config shape:
+    -- {
+    --   "sorts": [{"columnKey": "status", "direction": "asc"}],
+    --   "filters": [{"columnKey": "status", "operator": "is", "value": "Todo"}],
+    --   "columnOrder": ["status", "priority", "due_date"],
+    --   "hiddenColumns": []
+    -- }
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- Zone C: Agent State
 -- ============================================================
@@ -303,6 +321,9 @@ CREATE TRIGGER trg_agent_tasks_updated_at
 CREATE TRIGGER trg_app_settings_updated_at
     BEFORE UPDATE ON app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+CREATE TRIGGER trg_database_views_updated_at
+    BEFORE UPDATE ON database_views FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- ============================================================
 -- Row Level Security (RLS)
 -- ============================================================
@@ -310,6 +331,7 @@ CREATE TRIGGER trg_app_settings_updated_at
 ALTER TABLE nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE edges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE database_definitions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE database_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE entities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE communications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_tasks ENABLE ROW LEVEL SECURITY;
@@ -348,6 +370,16 @@ CREATE POLICY db_defs_update ON database_definitions FOR UPDATE
     USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
 CREATE POLICY db_defs_delete ON database_definitions FOR DELETE
     USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
+
+-- Database views: accessible if user owns the parent database node
+CREATE POLICY views_select ON database_views FOR SELECT
+    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
+CREATE POLICY views_insert ON database_views FOR INSERT
+    WITH CHECK (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
+CREATE POLICY views_update ON database_views FOR UPDATE
+    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
+CREATE POLICY views_delete ON database_views FOR DELETE
+    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
 
 -- Entities: read for all authenticated, write via service_role only
 CREATE POLICY entities_select ON entities FOR SELECT

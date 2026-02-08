@@ -41,8 +41,9 @@ SYSTEM_PROMPT = """You are Roka, an AI workspace assistant. You help users manag
 
 
 def _build_owner_tools(owner_id: str) -> list:
-    """Wrap workspace write tools so they always include owner_id."""
+    """Wrap workspace tools so they always include owner_id."""
     from langchain_core.tools import StructuredTool
+    from graph.tools.knowledge_base import search_knowledge_base
 
     async def _create_node_with_owner(
         title: str,
@@ -64,11 +65,29 @@ def _build_owner_tools(owner_id: str) -> list:
         description=create_node.description,
     )
 
-    # Build tool list: replace create_node with owner-bound version, keep the rest
+    async def _search_kb_with_owner(
+        query: str,
+        limit: int = 10,
+    ) -> str:
+        return await search_knowledge_base.ainvoke({
+            "query": query,
+            "limit": limit,
+            "owner_id": owner_id,
+        })
+
+    owner_search = StructuredTool.from_function(
+        coroutine=_search_kb_with_owner,
+        name="search_knowledge_base",
+        description=search_knowledge_base.description,
+    )
+
+    # Build tool list: replace wrapped tools, keep the rest
     tools = []
     for t in ALL_TOOLS:
         if t.name == "create_node":
             tools.append(owner_create)
+        elif t.name == "search_knowledge_base":
+            tools.append(owner_search)
         else:
             tools.append(t)
     return tools

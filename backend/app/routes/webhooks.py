@@ -79,7 +79,7 @@ async def ingest_webhook(
             pool = get_pool()
             # Find any workspace owner to assign the task to
             owner_row = await pool.fetchrow(
-                "SELECT DISTINCT owner_id FROM nodes LIMIT 1"
+                "SELECT owner_id FROM nodes ORDER BY created_at ASC LIMIT 1"
             )
             if owner_row:
                 from_str = payload.from_email or "unknown"

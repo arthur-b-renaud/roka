@@ -1,4 +1,4 @@
-.PHONY: setup up down logs help prod fix-content
+.PHONY: setup up down logs help prod fix-content migrate
 
 help:
 	@echo "Available commands:"
@@ -8,6 +8,7 @@ help:
 	@echo "  make prod        - Run with production overrides"
 	@echo "  make setup       - Generate secrets (infra/.env) manually"
 	@echo "  make fix-content - Fix corrupted BlockNote content in database"
+	@echo "  make migrate     - Run database migrations"
 
 setup:
 	@if [ ! -f infra/.env ]; then \
@@ -33,3 +34,11 @@ fix-content:
 	@echo "Fixing corrupted BlockNote content..."
 	cd infra && docker compose exec -T postgres psql -U postgres -d roka -f /docker-entrypoint-initdb.d/fix-blocknote-content.sql
 	@echo "Done! Refresh your browser to see the fixed content."
+
+migrate:
+	@echo "Running database migrations..."
+	@for f in database/migrations/*.sql; do \
+		echo "  Applying $$f..."; \
+		cd infra && docker compose exec -T db psql -U postgres -d roka -f /migrations/$$(basename $$f) && cd ..; \
+	done
+	@echo "Migrations complete."

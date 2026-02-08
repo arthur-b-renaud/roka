@@ -11,16 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ColumnTypeSelector } from "./column-type-selector";
 import type { SchemaColumn } from "@/lib/types/database";
-
-const COLUMN_TYPES: { value: SchemaColumn["type"]; label: string }[] = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "select", label: "Select" },
-  { value: "date", label: "Date" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "person", label: "Person" },
-];
 
 interface AddColumnDialogProps {
   open: boolean;
@@ -37,7 +29,7 @@ export function AddColumnDialog({
 }: AddColumnDialogProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState<SchemaColumn["type"]>("text");
-  const [options, setOptions] = useState(""); // comma-separated for select
+  const [options, setOptions] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,24 +81,7 @@ export function AddColumnDialog({
 
           <div className="space-y-2">
             <Label>Type</Label>
-            <div role="radiogroup" aria-label="Column type" className="grid grid-cols-3 gap-1.5">
-              {COLUMN_TYPES.map((ct) => (
-                <button
-                  key={ct.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={type === ct.value}
-                  onClick={() => setType(ct.value)}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    type === ct.value
-                      ? "border-primary bg-primary/10 font-medium text-primary"
-                      : "border-border hover:bg-muted"
-                  }`}
-                >
-                  {ct.label}
-                </button>
-              ))}
-            </div>
+            <ColumnTypeSelector value={type} onChange={setType} />
           </div>
 
           {type === "select" && (

@@ -20,6 +20,7 @@ services:
       - ../database/init.sql:/docker-entrypoint-initdb.d/z-98-init.sql
       - ../database/roles.sql:/docker-entrypoint-initdb.d/z-99-roles.sql
       - ../database/fix-blocknote-content.sql:/docker-entrypoint-initdb.d/fix-blocknote-content.sql
+      - ../database/migrations:/migrations
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U supabase_admin"]
       interval: 5s

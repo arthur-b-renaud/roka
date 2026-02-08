@@ -60,6 +60,38 @@ export const dbDatabaseDefinitionSchema = z.object({
   updated_at: z.string(),
 });
 
+// ──────────────────────────────────────────────
+// Database Views
+// ──────────────────────────────────────────────
+
+export const viewSortSchema = z.object({
+  columnKey: z.string(),
+  direction: z.enum(["asc", "desc"]),
+});
+
+export const viewFilterSchema = z.object({
+  columnKey: z.string(),
+  operator: z.string(),
+  value: z.unknown().optional(),
+});
+
+export const viewConfigSchema = z.object({
+  sorts: z.array(viewSortSchema).default([]),
+  filters: z.array(viewFilterSchema).default([]),
+  columnOrder: z.array(z.string()).default([]),
+  hiddenColumns: z.array(z.string()).default([]),
+});
+
+export const dbDatabaseViewSchema = z.object({
+  id: z.string().uuid(),
+  database_id: z.string().uuid(),
+  name: z.string(),
+  view_config: viewConfigSchema,
+  sort_order: z.number().int().min(0),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
 export const searchResultSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
@@ -87,5 +119,9 @@ export type DbNode = z.infer<typeof dbNodeSchema>;
 export type DbAgentTask = z.infer<typeof dbAgentTaskSchema>;
 export type DbDatabaseDefinition = z.infer<typeof dbDatabaseDefinitionSchema>;
 export type SchemaColumn = z.infer<typeof schemaColumnSchema>;
+export type ViewSort = z.infer<typeof viewSortSchema>;
+export type ViewFilter = z.infer<typeof viewFilterSchema>;
+export type ViewConfig = z.infer<typeof viewConfigSchema>;
+export type DbDatabaseView = z.infer<typeof dbDatabaseViewSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export type AppSetting = z.infer<typeof appSettingSchema>;
