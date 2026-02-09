@@ -7,35 +7,48 @@ You are an expert Senior Software Engineer specializing in "Sovereign AI" archit
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI.
 - **Editor**: BlockNote (React).
 - **Data Grid**: TanStack Table (Headless).
-- **State**: React Query (TanStack Query) + Supabase Client.
+- **State**: React Query (TanStack Query).
+- **Auth**: Auth.js v5 (Credentials provider, JWT strategy, Drizzle adapter).
+- **ORM**: Drizzle ORM + postgres.js driver.
 - **Backend**: Python 3.11, FastAPI, Pydantic v2.
 - **Agent**: LangGraph (Stateful Workflows).
-- **Database Access**: Supabase Python Client (PostgREST) + AsyncPG (Direct SQL).
-- **Database**: PostgreSQL 15+.
+- **Database Access**: AsyncPG (Direct SQL) for Python backend.
+- **Database**: PostgreSQL 16+ (pgvector/pgvector image).
 - **Extensions**: vector, pg_trgm.
-- **Infrastructure**: Docker Compose.
+- **Realtime**: Native SSE via PostgreSQL LISTEN/NOTIFY.
+- **Infrastructure**: Docker Compose (3 services: db, backend, frontend).
 
 ## 2. Architectural Principles (Strict Adherence)
 
 ### The "Sidecar" Pattern
 The Python Backend and Next.js Frontend are siblings. They do NOT communicate directly via HTTP if possible. They communicate via the Database.
 
+### API Pattern
+All data access from the frontend goes through Next.js API Route Handlers (`/api/*`). A strict handler factory (`lib/api-handler.ts`) enforces auth + Zod validation on every route. No raw DB calls from client components.
+
+### No Vendor Lock-in
+No proprietary services. All components are MIT/Apache-licensed and self-hostable. Auth, storage, and database are fully owned.
+
 ## 3. Coding Style
 
 - **TypeScript**: Strict mode. No `any`. Use `zod` for validation.
 - **Python**: Type hints for everything (`typing.List`, `typing.Optional`). Use Pydantic models for all API inputs/outputs.
 - **SQL**: Snake_case for columns. Plural for table names (`nodes`, `entities`).
+- **Drizzle**: CamelCase JS field names map to snake_case DB columns. All API responses are camelCase.
 - **Comments**: Explain "Why", not "What". Focus on the flow of data between the User, DB, and Agent.
 
 ## 4. Security & Permissions
 
-- **RLS (Row Level Security)**: The Backend (Python) runs with SERVICE_ROLE key (God Mode). The Frontend (Next.js) runs with ANON key (User Mode).
-- **Authentication**: Handled exclusively by Supabase Auth (GoTrue). Do not roll custom auth.
+- **Authentication**: Auth.js v5 with Credentials provider (bcrypt, JWT strategy).
+- **Authorization**: Application-level in API route handlers. Every mutation verifies `session.user.id` owns the resource.
+- **Backend**: Python backend connects with a restricted `roka_backend` PostgreSQL role (least privilege).
+- **No RLS**: Row-Level Security is NOT used. Authorization is enforced in the Next.js API layer.
 
 ## 5. Error Handling
 
 - **Backend**: Fail gracefully. If the Agent crashes, log the checkpoint state to the DB and mark the task as "Failed" so it can be retried.
 - **Frontend**: Use Error Boundaries. If a BlockNote plugin fails, the rest of the page must remain editable.
+- **API Routes**: Never leak internal error details to the client. Log server-side, return generic messages.
 
 ## 6. AGENT Verbose
 Make comments limited to the minimum, be MECE and very clear. Don't use too much words and very direct style.

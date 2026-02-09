@@ -28,6 +28,7 @@ import {
   PanelLeft,
   FileText,
   Database,
+  Bot,
 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
@@ -121,6 +122,13 @@ export function Sidebar() {
         >
           <Home className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
           Home
+        </button>
+        <button
+          onClick={() => router.push("/workspace/agents")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+        >
+          <Bot className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Agents
         </button>
         <button
           onClick={() => router.push("/workspace/settings")}

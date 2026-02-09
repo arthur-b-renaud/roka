@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useAppSettings, useUpdateAppSettings } from "@/lib/hooks/use-app-settings";
+import { CredentialsSection } from "@/components/settings/credentials-section";
+import { ToolsSection } from "@/components/settings/tools-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +18,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // LLM settings
+  // LLM settings (kept for backward compat alongside credentials vault)
   const { data: appSettings, isLoading: settingsLoading } = useAppSettings();
   const updateSettings = useUpdateAppSettings();
   const [provider, setProvider] = useState("openai");
@@ -35,7 +37,6 @@ export default function SettingsPage() {
   const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [smtpMessage, setSmtpMessage] = useState<string | null>(null);
 
-  // Load current LLM + SMTP settings from DB
   const [initialized, setInitialized] = useState(false);
   if (appSettings && !initialized) {
     if (appSettings.llm_provider) setProvider(appSettings.llm_provider);
@@ -133,18 +134,28 @@ export default function SettingsPage() {
           Settings
         </h1>
         <p className="mt-1 text-muted-foreground">
-          Manage your workspace settings
+          Manage your workspace, credentials, and agent tools
         </p>
       </div>
 
       <Separator />
 
-      {/* AI / LLM */}
+      {/* Credentials Vault (new) */}
+      <CredentialsSection />
+
+      <Separator />
+
+      {/* Agent Tools (new) */}
+      <ToolsSection />
+
+      <Separator />
+
+      {/* AI / LLM (legacy -- kept for quick setup) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Bot className="h-4 w-4" />
-            AI / LLM
+            AI / LLM (Quick Setup)
           </h2>
           <div className="flex items-center gap-1.5">
             {isLlmConfigured ? (
@@ -160,6 +171,9 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">
+          Quick setup for LLM. For production, use the Credentials Vault above instead.
+        </p>
 
         {settingsLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
@@ -212,9 +226,6 @@ export default function SettingsPage() {
                 placeholder={provider === "ollama" ? "http://host.docker.internal:11434" : "https://api.openai.com/v1"}
                 className="max-w-sm"
               />
-              <p className="text-xs text-muted-foreground">
-                For Ollama in Docker, use <code>http://host.docker.internal:11434</code>
-              </p>
             </div>
 
             {selectedProvider?.needsKey && (
@@ -242,11 +253,7 @@ export default function SettingsPage() {
                     aria-label={showKey ? "Hide API key" : "Show API key"}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                   >
-                    {showKey ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
@@ -256,10 +263,7 @@ export default function SettingsPage() {
               <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{llmMessage}</p>
             )}
 
-            <Button
-              onClick={handleSaveLLM}
-              disabled={updateSettings.isPending}
-            >
+            <Button onClick={handleSaveLLM} disabled={updateSettings.isPending}>
               {updateSettings.isPending ? "Saving..." : "Save LLM Settings"}
             </Button>
           </div>
@@ -268,12 +272,12 @@ export default function SettingsPage() {
 
       <Separator />
 
-      {/* SMTP / Email */}
+      {/* SMTP / Email (legacy) */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Mail className="h-4 w-4" />
-            Email / SMTP
+            Email / SMTP (Quick Setup)
           </h2>
           <div className="flex items-center gap-1.5">
             {isSmtpConfigured ? (
@@ -289,62 +293,33 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Configure SMTP to let the agent send outbound emails.
+        <p className="text-xs text-muted-foreground">
+          Quick SMTP setup. For production, use the Credentials Vault with type &quot;SMTP&quot;.
         </p>
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 max-w-sm">
             <div className="space-y-2">
               <Label htmlFor="smtp-host">SMTP Host</Label>
-              <Input
-                id="smtp-host"
-                value={smtpHost}
-                onChange={(e) => setSmtpHost(e.target.value)}
-                placeholder="smtp.gmail.com"
-              />
+              <Input id="smtp-host" value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="smtp-port">Port</Label>
-              <Input
-                id="smtp-port"
-                value={smtpPort}
-                onChange={(e) => setSmtpPort(e.target.value)}
-                placeholder="587"
-              />
+              <Input id="smtp-port" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" />
             </div>
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="smtp-from">From Email</Label>
-            <Input
-              id="smtp-from"
-              value={smtpFromEmail}
-              onChange={(e) => setSmtpFromEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="max-w-sm"
-            />
+            <Input id="smtp-from" value={smtpFromEmail} onChange={(e) => setSmtpFromEmail(e.target.value)} placeholder="you@example.com" className="max-w-sm" />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="smtp-user">Username (optional)</Label>
-            <Input
-              id="smtp-user"
-              value={smtpUser}
-              onChange={(e) => setSmtpUser(e.target.value)}
-              placeholder="your-email@example.com"
-              className="max-w-sm"
-            />
+            <Input id="smtp-user" value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="your-email@example.com" className="max-w-sm" />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="smtp-password">
               Password
-              {isSmtpConfigured && (
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  (leave blank to keep current)
-                </span>
-              )}
+              {isSmtpConfigured && <span className="ml-2 text-xs font-normal text-muted-foreground">(leave blank to keep current)</span>}
             </Label>
             <div className="relative max-w-sm">
               <Input
@@ -365,15 +340,10 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
-
           {smtpMessage && (
             <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{smtpMessage}</p>
           )}
-
-          <Button
-            onClick={handleSaveSMTP}
-            disabled={updateSettings.isPending}
-          >
+          <Button onClick={handleSaveSMTP} disabled={updateSettings.isPending}>
             {updateSettings.isPending ? "Saving..." : "Save SMTP Settings"}
           </Button>
         </div>
@@ -431,15 +401,11 @@ export default function SettingsPage() {
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between rounded-md bg-muted/50 px-4 py-2">
             <span>Search</span>
-            <kbd className="rounded bg-background px-2 py-1 text-xs font-mono shadow-sm">
-              Cmd + K
-            </kbd>
+            <kbd className="rounded bg-background px-2 py-1 text-xs font-mono shadow-sm">Cmd + K</kbd>
           </div>
           <div className="flex items-center justify-between rounded-md bg-muted/50 px-4 py-2">
             <span>New Page</span>
-            <kbd className="rounded bg-background px-2 py-1 text-xs font-mono shadow-sm">
-              Cmd + N
-            </kbd>
+            <kbd className="rounded bg-background px-2 py-1 text-xs font-mono shadow-sm">Cmd + N</kbd>
           </div>
         </div>
       </section>

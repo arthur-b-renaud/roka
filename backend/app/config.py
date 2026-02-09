@@ -13,14 +13,14 @@ class Settings(BaseSettings):
     db_pool_min: int = 2
     db_pool_max: int = 10
 
-    # CORS -- comma-separated origins, e.g. "http://localhost:3000,https://roka.example.com"
+    # CORS -- comma-separated origins
     cors_origins: str = "http://localhost:3000"
 
     # LLM fallback (used only when DB has no llm config)
     litellm_model: str = "openai/gpt-4o"
     llm_timeout_seconds: int = 120
 
-    # Webhook auth (optional). If set, requests must include X-Roka-Webhook-Secret
+    # Webhook auth
     webhook_secret: str = ""
 
     # Polling
@@ -32,12 +32,20 @@ class Settings(BaseSettings):
     # Text truncation limit for LLM input
     llm_max_input_chars: int = 4000
 
+    # Credential vault encryption key (Fernet, 32-byte base64)
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    roka_vault_key: str = ""
+
     class Config:
         env_file = ".env"
 
     @property
     def cors_origin_list(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def vault_configured(self) -> bool:
+        return bool(self.roka_vault_key.strip())
 
 
 settings = Settings()

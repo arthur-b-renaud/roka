@@ -23,9 +23,9 @@ WORKFLOW_HANDLERS = {
     "summarize": run_summarize_workflow,
     "triage": run_triage_workflow,
     "agent": run_agent_workflow,
+    "custom": run_agent_workflow,  # custom uses configurable agent definitions
 }
 
-# Tasks running longer than this (with no heartbeat update) are considered stale
 STALE_TASK_TIMEOUT_MINUTES = 10
 
 
@@ -66,7 +66,7 @@ async def _claim_and_run_one() -> bool:
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, workflow, input, node_id, owner_id
+        RETURNING id, workflow, input, node_id, owner_id, conversation_id, agent_definition_id
     """)
 
     if row is None:
@@ -74,9 +74,17 @@ async def _claim_and_run_one() -> bool:
 
     task_id = row["id"]
     workflow = row["workflow"]
-    task_input = row["input"]
+    task_input = dict(row["input"]) if row["input"] else {}
     node_id = row["node_id"]
     owner_id = row["owner_id"]
+    conversation_id = row["conversation_id"]
+    agent_def_id = row["agent_definition_id"]
+
+    # Inject conversation_id and agent_definition_id into task input
+    if conversation_id:
+        task_input["conversation_id"] = str(conversation_id)
+    if agent_def_id:
+        task_input["agent_definition_id"] = str(agent_def_id)
 
     logger.info("Running task %s (workflow=%s)", task_id, workflow)
 
@@ -90,7 +98,6 @@ async def _claim_and_run_one() -> bool:
         return True
 
     try:
-        # Run workflow with periodic heartbeat updates
         async def heartbeat_loop() -> None:
             while True:
                 await asyncio.sleep(30)
@@ -105,7 +112,7 @@ async def _claim_and_run_one() -> bool:
                 task_id=str(task_id),
                 node_id=str(node_id) if node_id else None,
                 owner_id=str(owner_id),
-                task_input=dict(task_input) if task_input else {},
+                task_input=task_input,
             )
         finally:
             heartbeat_task.cancel()
@@ -151,21 +158,18 @@ async def _claim_and_run_one() -> bool:
 
 async def poll_agent_tasks() -> None:
     """
-    Main loop: LISTEN for new_task notifications, with polling fallback
-    for reliability. Also periodically reclaims stale running tasks.
+    Main loop: LISTEN for new_task notifications, with polling fallback.
+    Also periodically reclaims stale running tasks.
     """
     pool = get_pool()
     logger.info("Task poller started (fallback interval=%ds)", settings.task_poll_interval_seconds)
 
-    # Set up LISTEN on a dedicated connection
     notify_event = asyncio.Event()
 
     async def _listen_loop() -> None:
-        """Dedicated connection that LISTENs for pg_notify('new_task')."""
         conn = await pool.acquire()
         try:
             await conn.add_listener("new_task", lambda *_args: notify_event.set())
-            # Keep connection alive
             while True:
                 await asyncio.sleep(3600)
         finally:
@@ -173,12 +177,10 @@ async def poll_agent_tasks() -> None:
             await pool.release(conn)
 
     listener_task = asyncio.create_task(_listen_loop())
-
     stale_check_counter = 0
 
     try:
         while True:
-            # Wait for notification or fallback timeout
             try:
                 await asyncio.wait_for(
                     notify_event.wait(),
@@ -188,11 +190,9 @@ async def poll_agent_tasks() -> None:
                 pass
             notify_event.clear()
 
-            # Process all available pending tasks
             while await _claim_and_run_one():
                 pass
 
-            # Periodically reclaim stale tasks (every ~12 poll cycles)
             stale_check_counter += 1
             if stale_check_counter >= 12:
                 stale_check_counter = 0

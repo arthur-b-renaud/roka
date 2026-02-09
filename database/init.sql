@@ -1,6 +1,6 @@
 -- ============================================================
--- Roka: Hybrid Schema  (PostgreSQL 15+)
--- Run once on a fresh Supabase/PG instance.
+-- Roka: Schema  (PostgreSQL 15+ / pgvector)
+-- Run once on a fresh PostgreSQL instance.
 -- ============================================================
 
 -- Extensions
@@ -77,7 +77,7 @@ CREATE TYPE node_type AS ENUM ('page', 'database', 'database_row', 'image');
 CREATE TABLE nodes (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     parent_id     UUID REFERENCES nodes(id) ON DELETE CASCADE,
-    owner_id      UUID NOT NULL,                       -- auth.uid()
+    owner_id      UUID NOT NULL,
     type          node_type NOT NULL DEFAULT 'page',
     title         TEXT NOT NULL DEFAULT '',
     icon          TEXT DEFAULT NULL,
@@ -325,138 +325,61 @@ CREATE TRIGGER trg_database_views_updated_at
     BEFORE UPDATE ON database_views FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
--- Row Level Security (RLS)
+-- Auth.js tables (application-managed auth)
 -- ============================================================
 
-ALTER TABLE nodes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE edges ENABLE ROW LEVEL SECURITY;
-ALTER TABLE database_definitions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE database_views ENABLE ROW LEVEL SECURITY;
-ALTER TABLE entities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE communications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE agent_tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE checkpoints ENABLE ROW LEVEL SECURITY;
-ALTER TABLE writes ENABLE ROW LEVEL SECURITY;
+CREATE TABLE IF NOT EXISTS users (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name            TEXT,
+    email           TEXT NOT NULL UNIQUE,
+    email_verified  TIMESTAMPTZ,
+    image           TEXT,
+    password_hash   TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
--- Nodes: users see their own nodes
-CREATE POLICY nodes_select ON nodes FOR SELECT
-    USING (auth.uid() = owner_id);
-CREATE POLICY nodes_insert ON nodes FOR INSERT
-    WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY nodes_update ON nodes FOR UPDATE
-    USING (auth.uid() = owner_id);
-CREATE POLICY nodes_delete ON nodes FOR DELETE
-    USING (auth.uid() = owner_id);
+CREATE TABLE IF NOT EXISTS accounts (
+    user_id             UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type                TEXT NOT NULL,
+    provider            TEXT NOT NULL,
+    provider_account_id TEXT NOT NULL,
+    refresh_token       TEXT,
+    access_token        TEXT,
+    expires_at          INTEGER,
+    token_type          TEXT,
+    scope               TEXT,
+    id_token            TEXT,
+    session_state       TEXT,
+    PRIMARY KEY (provider, provider_account_id)
+);
 
--- Edges: accessible if user owns both source and target nodes
-CREATE POLICY edges_select ON edges FOR SELECT
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY edges_insert ON edges FOR INSERT
-    WITH CHECK (
-        EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid())
-        AND EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.target_id AND nodes.owner_id = auth.uid())
-    );
-CREATE POLICY edges_update ON edges FOR UPDATE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY edges_delete ON edges FOR DELETE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = edges.source_id AND nodes.owner_id = auth.uid()));
+CREATE TABLE IF NOT EXISTS sessions (
+    session_token TEXT PRIMARY KEY,
+    user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires       TIMESTAMPTZ NOT NULL
+);
 
--- Database definitions: accessible if user owns the parent node
-CREATE POLICY db_defs_select ON database_definitions FOR SELECT
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY db_defs_insert ON database_definitions FOR INSERT
-    WITH CHECK (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY db_defs_update ON database_definitions FOR UPDATE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY db_defs_delete ON database_definitions FOR DELETE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_definitions.node_id AND nodes.owner_id = auth.uid()));
+CREATE TABLE IF NOT EXISTS verification_tokens (
+    identifier TEXT NOT NULL,
+    token      TEXT NOT NULL,
+    expires    TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (identifier, token)
+);
 
--- Database views: accessible if user owns the parent database node
-CREATE POLICY views_select ON database_views FOR SELECT
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY views_insert ON database_views FOR INSERT
-    WITH CHECK (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY views_update ON database_views FOR UPDATE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
-CREATE POLICY views_delete ON database_views FOR DELETE
-    USING (EXISTS (SELECT 1 FROM nodes WHERE nodes.id = database_views.database_id AND nodes.owner_id = auth.uid()));
+-- FK: nodes.owner_id -> users
+ALTER TABLE nodes ADD CONSTRAINT fk_nodes_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+ALTER TABLE agent_tasks ADD CONSTRAINT fk_agent_tasks_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
--- Entities: read for all authenticated, write via service_role only
-CREATE POLICY entities_select ON entities FOR SELECT
-    USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY entities_insert ON entities FOR INSERT
-    WITH CHECK (auth.role() = 'service_role');
-CREATE POLICY entities_update ON entities FOR UPDATE
-    USING (auth.role() = 'service_role');
-CREATE POLICY entities_delete ON entities FOR DELETE
-    USING (auth.role() = 'service_role');
-
--- Communications: read for authenticated, write via service_role
-CREATE POLICY comms_select ON communications FOR SELECT
-    USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-CREATE POLICY comms_insert ON communications FOR INSERT
-    WITH CHECK (auth.role() = 'service_role');
-
--- Agent tasks: users see their own
-CREATE POLICY tasks_select ON agent_tasks FOR SELECT
-    USING (auth.uid() = owner_id);
-CREATE POLICY tasks_insert ON agent_tasks FOR INSERT
-    WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY tasks_update_service ON agent_tasks FOR UPDATE
-    USING (auth.role() = 'service_role');
-
--- Checkpoints & writes: service_role only (agent internal)
-CREATE POLICY checkpoints_all ON checkpoints FOR ALL
-    USING (auth.role() = 'service_role');
-CREATE POLICY writes_all ON writes FOR ALL
-    USING (auth.role() = 'service_role');
-
--- App settings: anon can read non-secret rows (setup_complete check before auth)
-ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY app_settings_anon_read ON app_settings FOR SELECT
-    USING (NOT is_secret);
-CREATE POLICY app_settings_auth_read ON app_settings FOR SELECT
-    USING (auth.role() = 'authenticated' AND NOT is_secret);
-CREATE POLICY app_settings_auth_update ON app_settings FOR UPDATE
-    USING (
-        auth.role() = 'authenticated'
-        AND key IN (
-            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
-            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
-        )
-    )
-    WITH CHECK (
-        key IN (
-            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
-            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
-        )
-        AND (
-            (key IN ('llm_api_key', 'smtp_password') AND is_secret = true)
-            OR (key NOT IN ('llm_api_key', 'smtp_password') AND is_secret = false)
-        )
-    );
-CREATE POLICY app_settings_auth_insert ON app_settings FOR INSERT
-    WITH CHECK (
-        auth.role() = 'authenticated'
-        AND key IN (
-            'setup_complete', 'llm_provider', 'llm_model', 'llm_api_base', 'llm_api_key', 'llm_configured',
-            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email'
-        )
-        AND (
-            (key IN ('llm_api_key', 'smtp_password') AND is_secret = true)
-            OR (key NOT IN ('llm_api_key', 'smtp_password') AND is_secret = false)
-        )
-    );
-CREATE POLICY app_settings_service_all ON app_settings FOR ALL
-    USING (auth.role() = 'service_role');
+CREATE TRIGGER trg_users_updated_at
+    BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ============================================================
--- RPC: Full-text search across nodes
--- Uses auth.uid() internally so callers cannot search other users' data.
+-- RPC: Full-text search (accepts user_id as parameter)
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION search_nodes(
+    p_user_id UUID,
     search_query TEXT,
     result_limit INTEGER DEFAULT 20
 )
@@ -468,28 +391,23 @@ RETURNS TABLE (
     snippet TEXT,
     rank REAL
 ) AS $$
-DECLARE
-    current_user_id UUID := auth.uid();
 BEGIN
     RETURN QUERY
     SELECT
-        n.id,
-        n.title,
-        n.type,
-        n.parent_id,
+        n.id, n.title, n.type, n.parent_id,
         ts_headline('english', n.search_text, plainto_tsquery('english', search_query),
             'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20') AS snippet,
         ts_rank(to_tsvector('english', n.search_text), plainto_tsquery('english', search_query)) AS rank
     FROM nodes n
-    WHERE n.owner_id = current_user_id
+    WHERE n.owner_id = p_user_id
       AND to_tsvector('english', n.search_text) @@ plainto_tsquery('english', search_query)
     ORDER BY rank DESC
     LIMIT result_limit;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
--- Fuzzy search fallback (trigram)
 CREATE OR REPLACE FUNCTION search_nodes_fuzzy(
+    p_user_id UUID,
     search_query TEXT,
     result_limit INTEGER DEFAULT 20
 )
@@ -500,23 +418,18 @@ RETURNS TABLE (
     parent_id UUID,
     similarity REAL
 ) AS $$
-DECLARE
-    current_user_id UUID := auth.uid();
 BEGIN
     RETURN QUERY
     SELECT
-        n.id,
-        n.title,
-        n.type,
-        n.parent_id,
+        n.id, n.title, n.type, n.parent_id,
         similarity(n.search_text, search_query) AS similarity
     FROM nodes n
-    WHERE n.owner_id = current_user_id
+    WHERE n.owner_id = p_user_id
       AND n.search_text % search_query
     ORDER BY similarity DESC
     LIMIT result_limit;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 -- ============================================================
 -- Grant permissions to roka_backend role

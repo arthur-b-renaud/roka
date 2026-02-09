@@ -35,6 +35,13 @@ export async function GET() {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         });
 
+        // Listen to new messages (conversations)
+        await listenConn.listen("new_message", (payload) => {
+          if (closed) return;
+          const data = JSON.stringify({ channel: "new_message", payload });
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        });
+
         // Heartbeat every 30s to keep connection alive
         const heartbeat = setInterval(() => {
           if (closed) {

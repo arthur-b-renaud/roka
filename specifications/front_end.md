@@ -6,7 +6,9 @@ Framework: Next.js 14 (App Router)
 
 State Management: React Query (Server State) + React local state.
 
-Data Fetching: Supabase Client (RLS-enabled).
+Data Fetching: API Route Handlers via typed client (lib/api.ts).
+
+Auth: Auth.js v5 (Credentials, JWT strategy).
 
 Key Components
 
@@ -40,6 +42,6 @@ Responsibility: Command palette and full-text search.
 
 Logic:
 
-Invoke search_nodes RPC with the user's query.
+Invoke /api/search with the user's query.
 
 Navigate directly to node IDs from results.

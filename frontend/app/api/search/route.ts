@@ -1,17 +1,18 @@
 import { db } from "@/lib/db";
-import { nodes } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
+
+const MAX_QUERY_LENGTH = 200;
 
 // GET /api/search?q=query&limit=20
 export const GET = h.GET(async (userId, req) => {
   const url = new URL(req.url);
-  const query = url.searchParams.get("q") ?? "";
-  const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+  const rawQuery = url.searchParams.get("q") ?? "";
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "20", 10), 50);
+  const query = rawQuery.trim().slice(0, MAX_QUERY_LENGTH);
 
-  if (!query.trim()) return [];
+  if (!query) return [];
 
-  // Full-text search using tsvector
   const results = await db.execute(sql`
     SELECT
       n.id,

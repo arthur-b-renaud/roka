@@ -1,4 +1,5 @@
-"""SMTP helper: reads config from app_settings, sends email via aiosmtplib."""
+"""SMTP helper: reads from credentials table (service='smtp'),
+falls back to app_settings. Sends email via aiosmtplib."""
 
 import asyncio
 import logging
@@ -45,7 +46,7 @@ class SMTPConfig:
 
 
 async def get_smtp_config() -> SMTPConfig:
-    """Read SMTP settings from app_settings with in-memory cache."""
+    """Read SMTP settings: credentials table first, then app_settings fallback."""
     global _cache, _cache_ts
 
     now = time.monotonic()
@@ -53,31 +54,52 @@ async def get_smtp_config() -> SMTPConfig:
         return _cache
 
     async with _get_lock():
-        # Re-check inside lock
         if _cache is not None and (now - _cache_ts) < CACHE_TTL:
             return _cache
 
+        pool = get_pool()
+        host = ""
+        port = 587
+        user = ""
+        password = ""
+        from_email = ""
+
+        # Try credentials table first
         try:
-            pool = get_pool()
-            rows = await pool.fetch(
-                "SELECT key, value FROM app_settings WHERE key = ANY($1::text[])",
-                ["smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email"],
-            )
-            db = {row["key"]: row["value"] for row in rows}
+            from app.services.vault import decrypt
+            cred_row = await pool.fetchrow("""
+                SELECT config_encrypted FROM credentials
+                WHERE service = 'smtp' AND is_active = true
+                ORDER BY updated_at DESC LIMIT 1
+            """)
+            if cred_row and cred_row["config_encrypted"]:
+                config = decrypt(cred_row["config_encrypted"])
+                host = config.get("host", "")
+                port = int(config.get("port", 587))
+                user = config.get("user", "")
+                password = config.get("password", "")
+                from_email = config.get("from_email", "")
         except Exception:
-            logger.warning("Could not read SMTP settings from DB")
-            db = {}
+            pass
 
-        host = db.get("smtp_host", "").strip()
-        port_str = db.get("smtp_port", "587").strip()
-        user = db.get("smtp_user", "").strip()
-        password = db.get("smtp_password", "").strip()
-        from_email = db.get("smtp_from_email", "").strip()
-
-        try:
-            port = int(port_str)
-        except ValueError:
-            port = 587
+        # Fallback to app_settings
+        if not host:
+            try:
+                rows = await pool.fetch(
+                    "SELECT key, value FROM app_settings WHERE key = ANY($1::text[])",
+                    ["smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email"],
+                )
+                db = {row["key"]: row["value"] for row in rows}
+                host = db.get("smtp_host", "").strip()
+                try:
+                    port = int(db.get("smtp_port", "587").strip())
+                except ValueError:
+                    port = 587
+                user = db.get("smtp_user", "").strip()
+                password = db.get("smtp_password", "").strip()
+                from_email = db.get("smtp_from_email", "").strip()
+            except Exception:
+                logger.warning("Could not read SMTP settings from DB")
 
         is_configured = bool(host and from_email)
 

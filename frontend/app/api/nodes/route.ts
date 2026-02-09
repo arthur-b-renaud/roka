@@ -4,14 +4,21 @@ import { eq, and, isNull, inArray, desc, asc } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
 
-// GET /api/nodes?type=page,database&parentId=null&pinned=true&limit=9
+const nodeTypes = ["page", "database", "database_row", "image"] as const;
+
+// GET /api/nodes?type=page,database&parentId=null&pinned=true&limit=50
 export const GET = h.GET(async (userId, req) => {
   const url = new URL(req.url);
-  const types = url.searchParams.get("type")?.split(",") as any[] | undefined;
+  const rawTypes = url.searchParams.get("type")?.split(",").filter(Boolean);
   const parentId = url.searchParams.get("parentId");
   const pinned = url.searchParams.get("pinned");
-  const limit = parseInt(url.searchParams.get("limit") ?? "100", 10);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "100", 10), 200);
   const orderBy = url.searchParams.get("orderBy") ?? "updated_at";
+
+  // Validate type values
+  const types = rawTypes?.filter((t): t is (typeof nodeTypes)[number] =>
+    (nodeTypes as readonly string[]).includes(t),
+  );
 
   const conditions = [eq(nodes.ownerId, userId)];
   if (types?.length) conditions.push(inArray(nodes.type, types));
@@ -33,7 +40,7 @@ export const GET = h.GET(async (userId, req) => {
 
 const createNodeSchema = z.object({
   parentId: z.string().uuid().nullable().optional(),
-  type: z.enum(["page", "database", "database_row", "image"]).default("page"),
+  type: z.enum(nodeTypes).default("page"),
   title: z.string().default(""),
   icon: z.string().nullable().optional(),
   content: z.array(z.unknown()).default([]),

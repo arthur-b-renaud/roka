@@ -1,16 +1,14 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
-import { useRecentPages, usePinnedPages, useCreateAgentTask } from "@/lib/queries/nodes";
+import { useRecentPages, usePinnedPages } from "@/lib/queries/nodes";
 import { useSetupComplete } from "@/lib/hooks/use-app-settings";
 import { useRealtime } from "@/lib/hooks/use-realtime";
-import { api } from "@/lib/api";
+import { ChatPanel } from "@/components/chat/chat-panel";
+import { ActivityFeed } from "@/components/activity/activity-feed";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -26,56 +24,20 @@ import {
   Bot,
   Sparkles,
   GitBranch,
-  Send,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { dbAgentTaskSchema, type DbNode, type DbAgentTask } from "@/lib/types/database";
-import { z } from "zod";
-
-const agentTasksArraySchema = z.array(dbAgentTaskSchema);
+import { useCreateAgentTask } from "@/lib/queries/nodes";
+import type { DbNode } from "@/lib/types/database";
 
 export default function WorkspacePage() {
   const router = useRouter();
   const { userId } = useCurrentUser();
-  useRealtime(); // SSE: auto-invalidates agent-tasks on new_task events
+  useRealtime();
 
   const { data: recentPages = [], isLoading: loadingRecent } = useRecentPages(userId);
   const { data: pinnedPages = [] } = usePinnedPages(userId);
   const createAgentTask = useCreateAgentTask();
-
-  // Fetch agent tasks
-  const { data: agentTasks = [] } = useQuery<DbAgentTask[]>({
-    queryKey: ["agent-tasks", userId],
-    queryFn: async () => {
-      if (!userId) return [];
-      const data = await api.agentTasks.list(10);
-      return agentTasksArraySchema.parse(data);
-    },
-    enabled: !!userId,
-    staleTime: 10_000,
-  });
-
-  const statusColors: Record<string, string> = useMemo(() => ({
-    pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
-    running: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-    completed: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-    failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-    cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-800/40 dark:text-gray-300",
-  }), []);
-
   const { llmConfigured } = useSetupComplete();
-  const [agentPrompt, setAgentPrompt] = useState("");
-
-  const handleAgentSubmit = () => {
-    const trimmed = agentPrompt.trim();
-    if (!trimmed) return;
-    createAgentTask.mutate({
-      workflow: "agent",
-      prompt: trimmed,
-      nodeId: recentPages[0]?.id,
-    });
-    setAgentPrompt("");
-  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-24 py-8">
@@ -83,34 +45,10 @@ export default function WorkspacePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
       </div>
 
-      {llmConfigured && (
-        <section className="rounded-lg border px-4 py-3 space-y-2">
-          <div className="flex gap-2">
-            <Input
-              value={agentPrompt}
-              onChange={(e) => setAgentPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAgentSubmit();
-                }
-              }}
-              placeholder="Ask the agent..."
-              className="flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 text-sm"
-            />
-            <Button
-              onClick={handleAgentSubmit}
-              disabled={!agentPrompt.trim() || createAgentTask.isPending}
-              size="sm"
-              variant="ghost"
-              className="gap-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <Send className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </section>
-      )}
+      {/* Chat Panel -- replaces the old single-line prompt */}
+      {llmConfigured && <ChatPanel />}
 
+      {/* Quick actions */}
       <TooltipProvider>
         <div className="flex gap-3">
           <Tooltip>
@@ -170,6 +108,7 @@ export default function WorkspacePage() {
         </div>
       </TooltipProvider>
 
+      {/* Pinned pages */}
       {pinnedPages.length > 0 && (
         <section>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
@@ -184,6 +123,7 @@ export default function WorkspacePage() {
         </section>
       )}
 
+      {/* Recent pages */}
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           <Clock className="h-3.5 w-3.5" />
@@ -208,57 +148,13 @@ export default function WorkspacePage() {
         )}
       </section>
 
+      {/* Activity feed */}
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
           <Bot className="h-3.5 w-3.5" />
-          Agent Tasks
+          Activity
         </h2>
-        {agentTasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No agent tasks yet. Trigger one above.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {agentTasks.map((task) => (
-              <div
-                key={task.id}
-                className="rounded-lg border px-4 py-3 transition-colors duration-150"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant="outline"
-                      className={`${statusColors[task.status] ?? ""} border-0 text-xs`}
-                    >
-                      {task.status}
-                    </Badge>
-                    <span className="text-sm font-medium capitalize">
-                      {task.workflow}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-                {task.workflow === "agent" && task.input?.prompt && (
-                  <p className="mt-1.5 text-xs text-muted-foreground truncate">
-                    {String(task.input.prompt)}
-                  </p>
-                )}
-                {task.status === "completed" && task.output?.response && (
-                  <p className="mt-1.5 text-sm text-foreground/80 line-clamp-2">
-                    {String(task.output.response)}
-                  </p>
-                )}
-                {task.status === "failed" && task.error && (
-                  <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 truncate">
-                    {task.error}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <ActivityFeed userId={userId} />
       </section>
     </div>
   );

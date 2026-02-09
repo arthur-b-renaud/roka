@@ -37,7 +37,7 @@ DATABASE_URL = os.environ.get(
 TIMEOUT_SECONDS = 60
 POLL_INTERVAL = 2
 
-# Fake owner_id (won't match any real user, but backend uses service_role so RLS is bypassed)
+# Fake owner_id — no RLS, backend uses restricted roka_backend role
 OWNER_ID = uuid.uuid4()
 
 

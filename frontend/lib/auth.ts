@@ -13,9 +13,12 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email().transform((e) => e.toLowerCase().trim()),
   password: z.string().min(1),
 });
+
+// Dummy hash for constant-time comparison when user doesn't exist
+const DUMMY_HASH = "$2a$12$0000000000000000000000000000000000000000000000000000";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: DrizzleAdapter(db),
@@ -41,10 +44,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           .where(eq(users.email, email))
           .limit(1);
 
-        if (!user || !user.passwordHash) return null;
+        // Always compare to prevent timing-based user enumeration
+        const hashToCompare = user?.passwordHash || DUMMY_HASH;
+        const valid = await bcrypt.compare(password, hashToCompare);
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        if (!user || !valid) return null;
 
         return { id: user.id, email: user.email, name: user.name };
       },

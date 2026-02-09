@@ -6,8 +6,8 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 
 const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email().transform((e) => e.toLowerCase().trim()),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
 
 export async function POST(req: Request) {
@@ -20,20 +20,22 @@ export async function POST(req: Request) {
 
     const { email, password } = parsed.data;
 
-    // Check if user exists
-    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
     if (existing) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+      // Generic message — don't reveal whether email is registered
+      return NextResponse.json({ error: "Unable to create account" }, { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    const [user] = await db
-      .insert(users)
-      .values({ email, passwordHash })
-      .returning({ id: users.id, email: users.email });
+    await db.insert(users).values({ email, passwordHash });
 
-    return NextResponse.json({ id: user.id, email: user.email }, { status: 201 });
+    return NextResponse.json({ ok: true }, { status: 201 });
   } catch (e) {
     console.error("Signup error:", e);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

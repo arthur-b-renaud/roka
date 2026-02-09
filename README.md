@@ -32,6 +32,7 @@ Most "AI-powered" productivity tools are SaaS black boxes. Your notes, your docu
 - **You choose the AI** -- bring your own LLM (OpenAI, Ollama for local, OpenRouter, or any provider)
 - **AI agents work autonomously** -- summarize, triage, classify, and extract from your content
 - **Everything stays in your database** -- PostgreSQL with full-text search, no external dependencies
+- **No vendor lock-in** -- every component is MIT/Apache-licensed and replaceable
 
 One command to deploy. Zero lock-in.
 
@@ -65,19 +66,20 @@ That's it. The setup wizard walks you through creating your account and configur
 
 ### Sovereignty
 - **BYO LLM** -- Configure from the UI: OpenAI, Ollama (100% local), OpenRouter, or any litellm-compatible provider
-- **Self-hosted auth** -- Supabase Auth (GoTrue), no third-party auth dependency
-- **Full database access** -- PostgreSQL with pgvector, pg_trgm, and Supabase Studio dashboard
+- **Self-hosted auth** -- Auth.js v5 (MIT-licensed), credentials-based, no third-party dependency
+- **Full database ownership** -- PostgreSQL 16 with pgvector, pg_trgm, direct access via any SQL client
+- **Realtime** -- Native SSE via PostgreSQL LISTEN/NOTIFY (no external message broker)
 - **Backup/Restore** -- `pg_dump` scripts with optional S3 sync
 
 ## Architecture
 
 ```
-Browser -> Next.js (ANON key, RLS) -> Kong -> PostgreSQL 15
-                                                   ^
-                                                   |
-             FastAPI + LangGraph (SERVICE_ROLE) ---+---> litellm -> OpenAI / Ollama / OpenRouter
-                                                   |
-                                           app_settings (LLM config in DB)
+Browser -> Next.js (Auth.js JWT) -> API Routes -> PostgreSQL 16
+                                                        ^
+                                                        |
+             FastAPI + LangGraph (roka_backend role) ---+---> litellm -> OpenAI / Ollama / OpenRouter
+                                                        |
+                                                app_settings (LLM config in DB)
 ```
 
 **The Sidecar Pattern:** Frontend and Backend never talk to each other directly. They share the database. The frontend writes `agent_tasks` rows; the backend polls and executes them. This makes the system simple, debuggable, and resilient -- if the agent crashes, the workspace keeps working.
@@ -89,13 +91,15 @@ Browser -> Next.js (ANON key, RLS) -> Kong -> PostgreSQL 15
 | Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI |
 | Editor | BlockNote |
 | Data Grid | TanStack Table (headless) |
-| State | React Query + Supabase Client |
+| State | React Query |
+| Auth | Auth.js v5 (Credentials, JWT, Drizzle adapter) |
+| ORM | Drizzle ORM + postgres.js |
 | Backend | FastAPI, Python 3.11, Pydantic v2 |
 | Agent | LangGraph (stateful workflows) |
 | LLM | litellm (direct calls, no middleware) |
-| Database | PostgreSQL 15 + pgvector + pg_trgm |
-| Auth | Supabase Auth (GoTrue) |
-| Infra | Docker Compose, Caddy (production HTTPS) |
+| Database | PostgreSQL 16 + pgvector + pg_trgm |
+| Realtime | SSE via PostgreSQL LISTEN/NOTIFY |
+| Infra | Docker Compose (3 services), Caddy (production HTTPS) |
 
 ## Deploy to a VPS
 
@@ -124,15 +128,15 @@ The installer:
 ```
 roka/
 ├── frontend/              Next.js workspace UI
-│   ├── app/               App Router (setup, auth, workspace)
+│   ├── app/               App Router (setup, auth, workspace, API routes)
 │   ├── components/        Editor, grid, sidebar, UI primitives
-│   └── lib/               Supabase clients, React Query hooks, types
+│   └── lib/               Auth, Drizzle ORM, React Query hooks, types
 ├── backend/               FastAPI agent service
 │   ├── app/               Routes, services, config
 │   └── graph/workflows/   LangGraph workflows (summarize, triage)
 ├── database/
-│   └── init.sql           Schema, RLS policies, triggers, search RPCs
-├── infra/                 Docker Compose, Kong, setup scripts, backups
+│   └── init.sql           Schema, triggers, search RPCs
+├── infra/                 Docker Compose, setup scripts, backups
 └── install.sh             One-liner VPS installer
 ```
 

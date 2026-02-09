@@ -7,14 +7,12 @@ import { z } from "zod";
 const updateViewSchema = z.object({
   name: z.string().optional(),
   viewConfig: z.record(z.unknown()).optional(),
-}).passthrough();
+});
 
 // PATCH /api/database-views/:id
-export const PATCH = h.mutation(async (data, userId, req) => {
-  const id = req.url.split("/api/database-views/")[1]?.split("?")[0];
-  if (!id) throw new Error("Missing view id");
+export const PATCH = h.mutation(async (data, userId, _req, ctx) => {
+  const { id } = ctx.params;
 
-  // Fetch view, verify ownership via parent node
   const [view] = await db.select().from(databaseViews).where(eq(databaseViews.id, id)).limit(1);
   if (!view) throw new Error("View not found");
 
@@ -32,9 +30,8 @@ export const PATCH = h.mutation(async (data, userId, req) => {
 }, { schema: updateViewSchema });
 
 // DELETE /api/database-views/:id
-export const DELETE = h.mutation(async (_data, userId, req) => {
-  const id = req.url.split("/api/database-views/")[1]?.split("?")[0];
-  if (!id) throw new Error("Missing view id");
+export const DELETE = h.mutation(async (_data, userId, _req, ctx) => {
+  const { id } = ctx.params;
 
   const [view] = await db.select().from(databaseViews).where(eq(databaseViews.id, id)).limit(1);
   if (!view) throw new Error("View not found");

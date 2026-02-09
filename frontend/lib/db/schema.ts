@@ -161,20 +161,13 @@ export const agentTasks = pgTable("agent_tasks", {
   output: jsonb("output"),
   error: text("error"),
   nodeId: uuid("node_id").references(() => nodes.id, { onDelete: "set null" }),
+  conversationId: uuid("conversation_id").references((): any => conversations.id, { onDelete: "set null" }),
+  agentDefinitionId: uuid("agent_definition_id").references((): any => agentDefinitions.id, { onDelete: "set null" }),
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const checkpoints = pgTable("checkpoints", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  taskId: uuid("task_id").notNull().references(() => agentTasks.id, { onDelete: "cascade" }),
-  threadId: text("thread_id").notNull(),
-  checkpoint: jsonb("checkpoint").notNull(),
-  metadata: jsonb("metadata").notNull().default({}),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const writes = pgTable("writes", {
@@ -185,6 +178,8 @@ export const writes = pgTable("writes", {
   operation: text("operation").notNull(),
   oldData: jsonb("old_data"),
   newData: jsonb("new_data"),
+  actorType: text("actor_type").notNull().default("agent"),
+  actorId: uuid("actor_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -197,6 +192,101 @@ export const appSettings = pgTable("app_settings", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Zone E: Credential Vault ───────────────────────────
+
+export const credentialTypeEnum = pgEnum("credential_type", ["api_key", "oauth2", "smtp", "basic_auth", "custom"]);
+
+export const credentials = pgTable("credentials", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  service: text("service").notNull().default(""),
+  type: credentialTypeEnum("type").notNull(),
+  configEncrypted: text("config_encrypted").notNull(), // bytea mapped as text in drizzle
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Zone F: Tool Definitions ───────────────────────────
+
+export const toolTypeEnum = pgEnum("tool_type", ["builtin", "http", "custom"]);
+
+export const toolDefinitions = pgTable("tool_definitions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description").notNull().default(""),
+  type: toolTypeEnum("type").notNull().default("builtin"),
+  config: jsonb("config").notNull().default({}),
+  credentialId: uuid("credential_id").references(() => credentials.id, { onDelete: "set null" }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Zone G: Conversations ──────────────────────────────
+
+export const messageRoleEnum = pgEnum("message_role", ["user", "assistant", "system", "tool"]);
+
+export const conversations = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull().default("New conversation"),
+  agentDefinitionId: uuid("agent_definition_id").references((): any => agentDefinitions.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: messageRoleEnum("role").notNull(),
+  content: text("content").notNull().default(""),
+  metadata: jsonb("metadata").notNull().default({}),
+  taskId: uuid("task_id").references(() => agentTasks.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Zone H: Agent Definitions ──────────────────────────
+
+export const triggerTypeEnum = pgEnum("trigger_type", ["manual", "schedule", "event"]);
+
+export const agentDefinitions = pgTable("agent_definitions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  systemPrompt: text("system_prompt").notNull().default(""),
+  model: text("model").notNull().default(""),
+  toolIds: text("tool_ids").array(), // UUID[] stored as text array in drizzle
+  trigger: triggerTypeEnum("trigger").notNull().default("manual"),
+  triggerConfig: jsonb("trigger_config").notNull().default({}),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── Zone I: Telemetry ──────────────────────────────────
+
+export const telemetrySpans = pgTable("telemetry_spans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  traceId: text("trace_id").notNull(),
+  spanId: text("span_id").notNull(),
+  parentSpanId: text("parent_span_id"),
+  name: text("name").notNull(),
+  kind: text("kind").notNull().default("INTERNAL"),
+  status: text("status").notNull().default("OK"),
+  startTime: timestamp("start_time", { withTimezone: true }).notNull(),
+  endTime: timestamp("end_time", { withTimezone: true }),
+  durationMs: text("duration_ms"), // double precision mapped as text
+  attributes: jsonb("attributes").notNull().default({}),
+  events: jsonb("events").notNull().default([]),
+  taskId: uuid("task_id").references(() => agentTasks.id, { onDelete: "cascade" }),
+  ownerId: uuid("owner_id").references(() => users.id, { onDelete: "cascade" }),
+});
+
 // ── Relations ──────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -204,6 +294,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   agentTasks: many(agentTasks),
   accounts: many(accounts),
   sessions: many(sessions),
+  credentials: many(credentials),
+  conversations: many(conversations),
+  agentDefinitions: many(agentDefinitions),
 }));
 
 export const nodesRelations = relations(nodes, ({ one, many }) => ({
@@ -225,4 +318,30 @@ export const databaseViewsRelations = relations(databaseViews, ({ one }) => ({
 export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
   owner: one(users, { fields: [agentTasks.ownerId], references: [users.id] }),
   node: one(nodes, { fields: [agentTasks.nodeId], references: [nodes.id] }),
+  conversation: one(conversations, { fields: [agentTasks.conversationId], references: [conversations.id] }),
+  agentDefinition: one(agentDefinitions, { fields: [agentTasks.agentDefinitionId], references: [agentDefinitions.id] }),
+}));
+
+export const credentialsRelations = relations(credentials, ({ one }) => ({
+  owner: one(users, { fields: [credentials.ownerId], references: [users.id] }),
+}));
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  owner: one(users, { fields: [conversations.ownerId], references: [users.id] }),
+  agentDefinition: one(agentDefinitions, { fields: [conversations.agentDefinitionId], references: [agentDefinitions.id] }),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
+  agentTask: one(agentTasks, { fields: [messages.taskId], references: [agentTasks.id] }),
+}));
+
+export const agentDefinitionsRelations = relations(agentDefinitions, ({ one }) => ({
+  owner: one(users, { fields: [agentDefinitions.ownerId], references: [users.id] }),
+}));
+
+export const toolDefinitionsRelations = relations(toolDefinitions, ({ one }) => ({
+  owner: one(users, { fields: [toolDefinitions.ownerId], references: [users.id] }),
+  credential: one(credentials, { fields: [toolDefinitions.credentialId], references: [credentials.id] }),
 }));

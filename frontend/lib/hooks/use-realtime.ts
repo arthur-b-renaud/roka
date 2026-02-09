@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 
 /**
  * Connects to /api/sse and invalidates React Query caches on events.
- * Replaces Supabase Realtime subscriptions + polling.
+ * Uses PostgreSQL LISTEN/NOTIFY via SSE for realtime updates.
  */
 export function useRealtime() {
   const queryClient = useQueryClient();
@@ -24,8 +24,13 @@ export function useRealtime() {
         const data = JSON.parse(event.data);
 
         if (data.channel === "new_task") {
-          // Invalidate agent tasks to trigger refetch
           queryClient.invalidateQueries({ queryKey: ["agent-tasks"] });
+        }
+
+        if (data.channel === "new_message") {
+          // Invalidate conversation messages to trigger refetch
+          queryClient.invalidateQueries({ queryKey: ["messages"] });
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
         }
       } catch {
         // Ignore parse errors (heartbeats etc)

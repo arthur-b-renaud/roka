@@ -35,6 +35,8 @@ export const dbAgentTaskSchema = z.object({
   output: z.record(z.unknown()).nullable(),
   error: z.string().nullable(),
   nodeId: z.string().uuid().nullable(),
+  conversationId: z.string().uuid().nullable().optional(),
+  agentDefinitionId: z.string().uuid().nullable().optional(),
   startedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
   createdAt: z.string(),

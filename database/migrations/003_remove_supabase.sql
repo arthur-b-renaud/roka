@@ -45,11 +45,9 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
 );
 
 -- ── Update FK references ───────────────────────────────
--- nodes.owner_id now references public.users instead of auth.users
--- agent_tasks.owner_id now references public.users
-
--- (These FKs were implicit before via Supabase auth.users; 
---  we add explicit constraints after creating the users table)
+-- nodes.owner_id and agent_tasks.owner_id now reference public.users.
+-- init.sql already adds these FKs for fresh installs; this migration
+-- is for existing databases that predate the auth migration.
 
 -- ── Drop all RLS policies ──────────────────────────────
 

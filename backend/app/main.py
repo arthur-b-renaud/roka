@@ -1,4 +1,4 @@
-"""FastAPI application with lifespan for DB pool and task runner."""
+"""FastAPI application with lifespan for DB pool, checkpointer, telemetry, and task runner."""
 
 import asyncio
 import logging
@@ -12,16 +12,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import init_pool, close_pool
 from app.services.task_runner import poll_agent_tasks
+from app.services.checkpointer import init_checkpointer, close_checkpointer
+from app.services.telemetry import init_telemetry
+from graph.tools.registry import seed_builtin_tools
 from app.routes.webhooks import router as webhooks_router
 
-# Configure structured logging (JSON-like for production, readable for dev)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     datefmt="%Y-%m-%dT%H:%M:%S",
     stream=sys.stdout,
 )
-# Quiet noisy libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("litellm").setLevel(logging.WARNING)
@@ -32,15 +33,37 @@ logger = logging.getLogger("roka")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting Roka backend")
+
+    # 1. DB pool
     await init_pool()
     logger.info("DB pool initialized (min=%d, max=%d)", settings.db_pool_min, settings.db_pool_max)
+
+    # 2. LangGraph checkpointer (persistent agent memory)
+    try:
+        await init_checkpointer()
+    except Exception as e:
+        logger.warning("Checkpointer init failed (will retry on first use): %s", e)
+
+    # 3. OpenTelemetry
+    init_telemetry()
+
+    # 4. Seed built-in tool definitions
+    try:
+        await seed_builtin_tools()
+    except Exception as e:
+        logger.warning("Tool seeding failed: %s", e)
+
+    # 5. Task poller
     task = asyncio.create_task(poll_agent_tasks())
+
     yield
+
     task.cancel()
     try:
         await task
     except asyncio.CancelledError:
         pass
+    await close_checkpointer()
     await close_pool()
     logger.info("Roka backend shut down")
 
@@ -48,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Roka Backend",
     description="Agent service for the Roka workspace",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

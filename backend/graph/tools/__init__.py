@@ -1,4 +1,8 @@
-"""Agent tool registry -- all tools available to the ReAct agent."""
+"""Agent tool registry -- all tools available to the ReAct agent.
+
+For backward compatibility, ALL_TOOLS is still available.
+New code should use graph.tools.registry.load_tools_for_agent() for dynamic loading.
+"""
 
 from graph.tools.knowledge_base import (
     search_knowledge_base,

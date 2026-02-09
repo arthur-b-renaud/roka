@@ -1,7 +1,7 @@
 """
-LLM configuration service: reads provider/model/key from app_settings table.
-Caches in memory with TTL to avoid hitting DB on every LLM call.
-Falls back to env var LITELLM_MODEL when DB has no config.
+LLM configuration service: reads from credentials table (service='llm'),
+falls back to app_settings for backward compatibility, then to env vars.
+Caches in memory with TTL.
 """
 
 import asyncio
@@ -20,7 +20,6 @@ _cache_lock: asyncio.Lock | None = None
 
 
 def _get_lock() -> asyncio.Lock:
-    """Lazy-create the lock (must be in a running event loop)."""
     global _cache_lock
     if _cache_lock is None:
         _cache_lock = asyncio.Lock()
@@ -29,20 +28,19 @@ def _get_lock() -> asyncio.Lock:
 
 @dataclass
 class LLMConfig:
-    provider: str  # "openai", "ollama", "openrouter"
-    model: str  # "gpt-4o", "llama3", etc.
-    api_key: str  # provider API key
-    api_base: str  # optional base URL (for ollama/local)
-    is_configured: bool  # True if api_key is non-empty (or ollama which needs no key)
+    provider: str
+    model: str
+    api_key: str
+    api_base: str
+    is_configured: bool
 
     @property
     def model_string(self) -> str:
-        """Full model identifier for litellm, e.g. 'openai/gpt-4o'."""
         return f"{self.provider}/{self.model}"
 
 
 async def get_llm_config() -> LLMConfig:
-    """Return current LLM config, reading from DB with in-memory cache (lock-protected)."""
+    """Return current LLM config. Reads from credentials table first, then app_settings fallback."""
     global _cache, _cache_ts
 
     now = time.monotonic()
@@ -50,30 +48,55 @@ async def get_llm_config() -> LLMConfig:
         return _cache
 
     async with _get_lock():
-        # Double-check after acquiring lock
         now = time.monotonic()
         if _cache is not None and (now - _cache_ts) < settings.llm_cache_ttl_seconds:
             return _cache
 
+        pool = get_pool()
+        provider = ""
+        model = ""
+        api_key = ""
+        api_base = ""
+
+        # Try credentials table first (new vault-based approach)
         try:
-            pool = get_pool()
-            rows = await pool.fetch(
-                "SELECT key, value FROM app_settings WHERE key = ANY($1::text[])",
-                ["llm_provider", "llm_model", "llm_api_key", "llm_api_base"],
-            )
-            db_settings = {row["key"]: row["value"] for row in rows}
+            from app.services.vault import decrypt
+            cred_row = await pool.fetchrow("""
+                SELECT config_encrypted FROM credentials
+                WHERE service = 'llm' AND is_active = true
+                ORDER BY updated_at DESC LIMIT 1
+            """)
+            if cred_row and cred_row["config_encrypted"]:
+                config = decrypt(cred_row["config_encrypted"])
+                provider = config.get("provider", "")
+                model = config.get("model", "")
+                api_key = config.get("api_key", "")
+                api_base = config.get("api_base", "")
         except Exception:
-            logger.warning("Could not read LLM settings from DB, using env fallback")
-            db_settings = {}
+            pass  # Fall through to app_settings
 
-        provider = db_settings.get("llm_provider", "").strip()
-        model = db_settings.get("llm_model", "").strip()
-        api_key = db_settings.get("llm_api_key", "").strip()
-        api_base = db_settings.get("llm_api_base", "").strip()
-
-        # Fallback to env var if DB has no meaningful config
+        # Fallback to app_settings (backward compat)
         if not provider or not model:
-            fallback = settings.litellm_model  # e.g. "openai/gpt-4o"
+            try:
+                rows = await pool.fetch(
+                    "SELECT key, value FROM app_settings WHERE key = ANY($1::text[])",
+                    ["llm_provider", "llm_model", "llm_api_key", "llm_api_base"],
+                )
+                db_settings = {row["key"]: row["value"] for row in rows}
+                if not provider:
+                    provider = db_settings.get("llm_provider", "").strip()
+                if not model:
+                    model = db_settings.get("llm_model", "").strip()
+                if not api_key:
+                    api_key = db_settings.get("llm_api_key", "").strip()
+                if not api_base:
+                    api_base = db_settings.get("llm_api_base", "").strip()
+            except Exception:
+                logger.warning("Could not read LLM settings from DB, using env fallback")
+
+        # Final fallback to env var
+        if not provider or not model:
+            fallback = settings.litellm_model
             parts = fallback.split("/", 1)
             provider = parts[0] if len(parts) == 2 else "openai"
             model = parts[1] if len(parts) == 2 else fallback
@@ -81,10 +104,8 @@ async def get_llm_config() -> LLMConfig:
         is_configured = bool(api_key) or provider == "ollama"
 
         _cache = LLMConfig(
-            provider=provider,
-            model=model,
-            api_key=api_key,
-            api_base=api_base,
+            provider=provider, model=model,
+            api_key=api_key, api_base=api_base,
             is_configured=is_configured,
         )
         _cache_ts = now
@@ -92,7 +113,6 @@ async def get_llm_config() -> LLMConfig:
 
 
 def invalidate_cache() -> None:
-    """Force next call to re-read from DB."""
     global _cache, _cache_ts
     _cache = None
     _cache_ts = 0.0

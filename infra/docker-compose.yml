@@ -1,4 +1,4 @@
-# Roka -- 3-service stack (no Supabase)
+# Roka -- 3-service stack (db, backend, frontend)
 # Copy infra/.env.example to infra/.env and configure before running.
 
 services:
