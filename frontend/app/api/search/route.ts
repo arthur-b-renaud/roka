@@ -17,7 +17,7 @@ export const GET = h.GET(async (userId, req) => {
       n.id,
       n.title,
       n.type,
-      n.parent_id,
+      n.parent_id AS "parentId",
       ts_headline('english', n.search_text, plainto_tsquery('english', ${query}),
         'StartSel=<mark>, StopSel=</mark>, MaxWords=50, MinWords=20') AS snippet,
       ts_rank(to_tsvector('english', n.search_text), plainto_tsquery('english', ${query})) AS rank

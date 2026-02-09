@@ -237,7 +237,7 @@ export default function WorkspacePage() {
                     </span>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(task.created_at), { addSuffix: true })}
+                    {formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
                   </span>
                 </div>
                 {task.workflow === "agent" && task.input?.prompt && (
@@ -284,7 +284,7 @@ const PageCard = memo(function PageCard({ node, onClick }: { node: DbNode; onCli
         </span>
       </div>
       <span className="text-xs text-muted-foreground">
-        {formatDistanceToNow(new Date(node.updated_at), { addSuffix: true })}
+        {formatDistanceToNow(new Date(node.updatedAt), { addSuffix: true })}
       </span>
     </button>
   );

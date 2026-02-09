@@ -18,15 +18,15 @@ export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
   const [showAddColumn, setShowAddColumn] = useState(false);
 
   const { data: dbDef } = useQuery<DbDatabaseDefinition | null>({
-    queryKey: ["db-definition", node.parent_id],
+    queryKey: ["db-definition", node.parentId],
     queryFn: async () => {
-      if (!node.parent_id) return null;
-      return api.databaseDefinitions.get(node.parent_id);
+      if (!node.parentId) return null;
+      return api.databaseDefinitions.get(node.parentId);
     },
-    enabled: !!node.parent_id,
+    enabled: !!node.parentId,
   });
 
-  const schema: SchemaColumn[] = dbDef?.schema_config ?? [];
+  const schema: SchemaColumn[] = dbDef?.schemaConfig ?? [];
 
   const handlePropertyChange = useCallback(
     async (key: string, value: unknown) => {
@@ -36,8 +36,8 @@ export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
       };
       await api.nodes.update(node.id, { properties });
       queryClient.invalidateQueries({ queryKey: ["node", node.id] });
-      if (node.parent_id) {
-        queryClient.invalidateQueries({ queryKey: ["db-rows", node.parent_id] });
+      if (node.parentId) {
+        queryClient.invalidateQueries({ queryKey: ["db-rows", node.parentId] });
       }
     },
     [queryClient, node]
@@ -45,12 +45,12 @@ export function RowPropertiesPanel({ node }: RowPropertiesPanelProps) {
 
   const handleAddColumn = useCallback(
     async (column: SchemaColumn) => {
-      if (!dbDef || !node.parent_id) return;
-      const newSchema = [...dbDef.schema_config, column];
-      await api.databaseDefinitions.update(node.parent_id, newSchema);
-      queryClient.invalidateQueries({ queryKey: ["db-definition", node.parent_id] });
+      if (!dbDef || !node.parentId) return;
+      const newSchema = [...dbDef.schemaConfig, column];
+      await api.databaseDefinitions.update(node.parentId, newSchema);
+      queryClient.invalidateQueries({ queryKey: ["db-definition", node.parentId] });
     },
-    [dbDef, queryClient, node.parent_id]
+    [dbDef, queryClient, node.parentId]
   );
 
   return (

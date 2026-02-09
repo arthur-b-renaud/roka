@@ -79,10 +79,10 @@ export function PageHeader({ node }: PageHeaderProps) {
 
   return (
     <div className="mb-4 space-y-1.5">
-      {node.cover_url && (
+      {node.coverUrl && (
         <div className="relative h-[200px] w-full overflow-hidden rounded-lg">
           <img
-            src={node.cover_url}
+            src={node.coverUrl}
             alt=""
             className="h-full w-full object-cover"
           />

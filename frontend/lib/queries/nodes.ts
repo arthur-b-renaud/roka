@@ -74,17 +74,17 @@ export function useCreateAgentTask() {
 
       const optimisticTask: DbAgentTask = {
         id: crypto.randomUUID(),
-        owner_id: userId ?? "",
+        ownerId: userId ?? "",
         workflow,
         status: "pending",
         input,
         output: null,
         error: null,
-        node_id: nodeId ?? null,
-        started_at: null,
-        completed_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        nodeId: nodeId ?? null,
+        startedAt: null,
+        completedAt: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
 
       queryClient.setQueryData<DbAgentTask[]>(

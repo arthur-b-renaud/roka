@@ -76,7 +76,7 @@ export function ViewTabs({
       {views.map((view) => {
         const isActive = view.id === activeViewId;
         const isEditing = editingId === view.id;
-        const viewType = view.view_config?.viewType ?? "table";
+        const viewType = view.viewConfig?.viewType ?? "table";
 
         return (
           <div key={view.id} className="flex items-center">

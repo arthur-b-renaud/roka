@@ -64,7 +64,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
       const data = await api.databaseViews.list(node.id);
       return (data ?? []).map((v: Record<string, unknown>) => ({
         ...v,
-        view_config: viewConfigSchema.parse(v.view_config ?? {}),
+        viewConfig: viewConfigSchema.parse(v.viewConfig ?? {}),
       })) as DbDatabaseView[];
     },
   });
@@ -103,7 +103,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   );
   const viewConfig: ViewConfig = useMemo(
     () =>
-      activeView?.view_config ?? {
+      activeView?.viewConfig ?? {
         viewType: "table",
         sorts: [],
         filters: [],
@@ -114,7 +114,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   );
 
   const schemaColumns: SchemaColumn[] = useMemo(
-    () => dbDef?.schema_config ?? [],
+    () => dbDef?.schemaConfig ?? [],
     [dbDef]
   );
 
@@ -142,7 +142,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
         ["db-views", node.id],
         (old) =>
           (old ?? []).map((v) =>
-            v.id === activeView.id ? { ...v, view_config: newConfig } : v
+            v.id === activeView.id ? { ...v, viewConfig: newConfig } : v
           )
       );
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -218,7 +218,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   const addColumn = useCallback(
     async (column: SchemaColumn) => {
       if (!dbDef) return;
-      const newSchema = [...dbDef.schema_config, column];
+      const newSchema = [...dbDef.schemaConfig, column];
       await api.databaseDefinitions.update(node.id, newSchema);
       queryClient.invalidateQueries({ queryKey: ["db-definition", node.id] });
     },
@@ -228,7 +228,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   const removeColumn = useCallback(
     async (key: string) => {
       if (!dbDef) return;
-      const newSchema = dbDef.schema_config.filter((c) => c.key !== key);
+      const newSchema = dbDef.schemaConfig.filter((c) => c.key !== key);
       await api.databaseDefinitions.update(node.id, newSchema);
       queryClient.invalidateQueries({ queryKey: ["db-definition", node.id] });
     },
@@ -238,7 +238,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   const renameColumn = useCallback(
     async (key: string, newName: string) => {
       if (!dbDef) return;
-      const newSchema = dbDef.schema_config.map((c) =>
+      const newSchema = dbDef.schemaConfig.map((c) =>
         c.key === key ? { ...c, name: newName } : c
       );
       await api.databaseDefinitions.update(node.id, newSchema);
@@ -250,7 +250,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   const changeColumnType = useCallback(
     async (key: string, newType: SchemaColumn["type"], options?: string[]) => {
       if (!dbDef) return;
-      const newSchema = dbDef.schema_config.map((c) =>
+      const newSchema = dbDef.schemaConfig.map((c) =>
         c.key === key
           ? { ...c, type: newType, options: newType === "select" ? options : undefined }
           : c
@@ -264,7 +264,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
   const reorderColumns = useCallback(
     async (newOrder: string[]) => {
       if (!dbDef) return;
-      const byKey = new Map(dbDef.schema_config.map((c) => [c.key, c]));
+      const byKey = new Map(dbDef.schemaConfig.map((c) => [c.key, c]));
       const reordered = newOrder
         .map((k) => byKey.get(k))
         .filter((c): c is SchemaColumn => c != null);
@@ -313,7 +313,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
       const data = await api.databaseViews.create({
         databaseId: node.id,
         name: `${source.name} (copy)`,
-        viewConfig: source.view_config as unknown as Record<string, unknown>,
+        viewConfig: source.viewConfig as unknown as Record<string, unknown>,
         sortOrder: views.length,
       });
       if (data) {

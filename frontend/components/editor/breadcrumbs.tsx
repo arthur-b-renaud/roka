@@ -30,7 +30,7 @@ export function Breadcrumbs({ nodeId }: BreadcrumbsProps) {
           title: data.title || "Untitled",
           icon: data.icon ?? null,
         });
-        currentId = data.parentId ?? data.parent_id ?? null;
+        currentId = data.parentId ?? null;
       }
 
       return path;

@@ -195,7 +195,7 @@ function MoveToDialog({
         <div className="max-h-[300px] overflow-y-auto space-y-0.5 py-2">
           <button
             onClick={() => moveMutation.mutate(null)}
-            disabled={node.parent_id === null}
+            disabled={node.parentId === null}
             className={cn(
               "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
             )}
@@ -209,7 +209,7 @@ function MoveToDialog({
               <button
                 key={p.id}
                 onClick={() => moveMutation.mutate(p.id)}
-                disabled={p.id === node.parent_id}
+                disabled={p.id === node.parentId}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
                 )}
@@ -316,11 +316,11 @@ const TreeNode = memo(function TreeNode({
   );
 
   const handleFavorite = useCallback(async () => {
-    await api.nodes.update(node.id, { isPinned: !node.is_pinned });
+    await api.nodes.update(node.id, { isPinned: !node.isPinned });
     queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
     queryClient.invalidateQueries({ queryKey: ["node", node.id] });
-    toast(node.is_pinned ? "Removed from favorites" : "Added to favorites");
-  }, [node.id, node.is_pinned, queryClient, toast]);
+    toast(node.isPinned ? "Removed from favorites" : "Added to favorites");
+  }, [node.id, node.isPinned, queryClient, toast]);
 
   const handleCopyLink = useCallback(() => {
     const url = `${window.location.origin}${nodeUrl}`;
@@ -331,7 +331,7 @@ const TreeNode = memo(function TreeNode({
   const handleDuplicate = useCallback(async () => {
     if (!userId) return;
     const newNode = await api.nodes.create({
-      parentId: node.parent_id,
+      parentId: node.parentId,
       type: node.type,
       title: `${node.title || "Untitled"} (copy)`,
       icon: node.icon,
@@ -406,8 +406,8 @@ const TreeNode = memo(function TreeNode({
     onTrash: handleTrash,
     onOpenNewTab: handleOpenNewTab,
     onOpenSidePeek: handleOpenSidePeek,
-    isPinned: node.is_pinned,
-    updatedAt: node.updated_at,
+    isPinned: node.isPinned,
+    updatedAt: node.updatedAt,
   };
 
   const handleKeyDown = useCallback(
