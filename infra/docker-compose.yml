@@ -33,6 +33,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-postgres}
+      ROKA_VAULT_KEY: ${ROKA_VAULT_KEY:-}
     volumes:
       - ../backend:/app
 
