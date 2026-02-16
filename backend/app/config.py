@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # Polling
     task_poll_interval_seconds: int = 5
 
+    # Centrifugo (real-time bridge)
+    centrifugo_api_url: str = "http://centrifugo:8000"
+    centrifugo_api_key: str = ""
+
     # LLM settings cache TTL
     llm_cache_ttl_seconds: int = 60
 

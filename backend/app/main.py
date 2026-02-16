@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_pool, close_pool
+from app.services.centrifugo_bridge import centrifugo_bridge
 from app.services.task_runner import poll_agent_tasks
 from app.services.checkpointer import init_checkpointer, close_checkpointer
 from app.services.telemetry import init_telemetry
@@ -56,8 +57,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 5. Task poller
     task = asyncio.create_task(poll_agent_tasks())
 
+    # 6. Centrifugo bridge (Postgres LISTEN -> publish)
+    bridge_task = asyncio.create_task(centrifugo_bridge())
+
     yield
 
+    bridge_task.cancel()
+    try:
+        await bridge_task
+    except asyncio.CancelledError:
+        pass
     task.cancel()
     try:
         await task

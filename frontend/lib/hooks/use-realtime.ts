@@ -1,49 +1,49 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { Centrifuge } from "centrifuge";
 
 /**
- * Connects to /api/sse and invalidates React Query caches on events.
- * Uses PostgreSQL LISTEN/NOTIFY via SSE for realtime updates.
+ * Connects to Centrifugo via WebSocket and invalidates React Query caches on events.
+ * Replaces per-tab Postgres LISTEN with a single multiplexer.
  */
 export function useRealtime() {
   const queryClient = useQueryClient();
   const { status } = useSession();
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") return;
 
-    const es = new EventSource("/api/sse");
-    eventSourceRef.current = es;
+    const url = process.env.NEXT_PUBLIC_CENTRIFUGO_URL;
+    if (!url) return;
 
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+    const centrifuge = new Centrifuge(url, {
+      getToken: async () => {
+        const res = await fetch("/api/centrifugo/token");
+        const { token } = await res.json();
+        return token;
+      },
+    });
 
-        if (data.channel === "new_task") {
-          queryClient.invalidateQueries({ queryKey: ["agent-tasks"] });
-        }
+    const taskSub = centrifuge.newSubscription("new_task");
+    taskSub.on("publication", () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-tasks"] });
+    });
+    taskSub.subscribe();
 
-        if (data.channel === "new_message") {
-          // Invalidate conversation messages to trigger refetch
-          queryClient.invalidateQueries({ queryKey: ["messages"] });
-          queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        }
-      } catch {
-        // Ignore parse errors (heartbeats etc)
-      }
-    };
+    const msgSub = centrifuge.newSubscription("new_message");
+    msgSub.on("publication", () => {
+      queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    });
+    msgSub.subscribe();
 
-    es.onerror = () => {
-      // EventSource auto-reconnects on error
-    };
+    centrifuge.connect();
 
     return () => {
-      es.close();
-      eventSourceRef.current = null;
+      centrifuge.disconnect();
     };
   }, [status, queryClient]);
 }

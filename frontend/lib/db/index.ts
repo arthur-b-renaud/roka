@@ -13,8 +13,3 @@ const connectionString = process.env.DATABASE_URL!;
 const client = postgres(connectionString, { max: 10 });
 
 export const db = drizzle(client, { schema });
-
-// Separate connection factory for LISTEN/NOTIFY (SSE needs its own)
-export function createListenConnection() {
-  return postgres(connectionString, { max: 1 });
-}

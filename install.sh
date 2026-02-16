@@ -157,6 +157,9 @@ ${CADDY_HOST} {
     handle /api/webhooks/* {
         reverse_proxy backend:8100
     }
+    handle_path /centrifugo/* {
+        reverse_proxy centrifugo:8000
+    }
     handle {
         reverse_proxy frontend:3000
     }

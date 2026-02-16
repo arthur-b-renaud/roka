@@ -1,5 +1,7 @@
 # Multi-stage production build
 FROM node:20-alpine AS builder
+ARG NEXT_PUBLIC_CENTRIFUGO_URL
+ENV NEXT_PUBLIC_CENTRIFUGO_URL=$NEXT_PUBLIC_CENTRIFUGO_URL
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci

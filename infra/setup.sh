@@ -10,6 +10,35 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
 SEAWEED_S3_JSON="${SCRIPT_DIR}/seaweedfs-s3.json"
 
+# Upgrade path: .env exists but Centrifugo secrets missing (e.g. after adding real-time)
+if [ -f "$ENV_FILE" ] && ! grep -q "^CENTRIFUGO_TOKEN_SECRET=" "$ENV_FILE" 2>/dev/null; then
+  echo "Adding Centrifugo config..."
+  CENTRIFUGO_TOKEN_SECRET=$(openssl rand -hex 32)
+  CENTRIFUGO_API_KEY=$(openssl rand -hex 32)
+  # Determine Centrifugo URL from NEXTAUTH_URL if present (prod upgrade)
+  NEXTAUTH_VAL=$(grep -E "^NEXTAUTH_URL=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  if [ -n "$NEXTAUTH_VAL" ] && echo "$NEXTAUTH_VAL" | grep -qE '^https://'; then
+    DOM=$(echo "$NEXTAUTH_VAL" | sed -E 's|https://([^/]+).*|\1|')
+    CENTRIFUGO_PUBLIC_URL="wss://${DOM}/centrifugo/connection/websocket"
+  else
+    CENTRIFUGO_PUBLIC_URL="ws://localhost:8000/connection/websocket"
+  fi
+  cat >> "$ENV_FILE" <<ENVAPPEND
+
+############
+# Centrifugo (real-time multiplexer) - auto-added
+############
+
+CENTRIFUGO_TOKEN_SECRET=${CENTRIFUGO_TOKEN_SECRET}
+CENTRIFUGO_API_KEY=${CENTRIFUGO_API_KEY}
+CENTRIFUGO_PORT=8000
+CENTRIFUGO_API_URL=http://centrifugo:8000
+NEXT_PUBLIC_CENTRIFUGO_URL=${CENTRIFUGO_PUBLIC_URL}
+ENVAPPEND
+  echo "Centrifugo config added to .env"
+  exit 0
+fi
+
 # Upgrade path: .env exists but seaweedfs-s3.json missing (e.g. after adding object storage)
 if [ -f "$ENV_FILE" ] && [ ! -f "$SEAWEED_S3_JSON" ]; then
   echo "Adding object storage config (seaweedfs-s3.json)..."
@@ -60,17 +89,22 @@ POSTGRES_PASSWORD=$(openssl rand -hex 32)
 NEXTAUTH_SECRET=$(openssl rand -hex 32)
 S3_ACCESS_KEY=$(openssl rand -hex 16)
 S3_SECRET_KEY=$(openssl rand -hex 32)
+CENTRIFUGO_TOKEN_SECRET=$(openssl rand -hex 32)
+CENTRIFUGO_API_KEY=$(openssl rand -hex 32)
 
 # Determine public URL based on ROKA_DOMAIN env var
 if [ -n "${ROKA_DOMAIN:-}" ]; then
   if echo "$ROKA_DOMAIN" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
     PUBLIC_URL="http://${ROKA_DOMAIN}"
+    CENTRIFUGO_PUBLIC_URL="ws://${ROKA_DOMAIN}:8000/connection/websocket"
   else
     PUBLIC_URL="https://${ROKA_DOMAIN}"
+    CENTRIFUGO_PUBLIC_URL="wss://${ROKA_DOMAIN}/centrifugo/connection/websocket"
   fi
   NEXTAUTH_URL="$PUBLIC_URL"
 else
   NEXTAUTH_URL="http://localhost:3000"
+  CENTRIFUGO_PUBLIC_URL="ws://localhost:8000/connection/websocket"
 fi
 
 echo "Writing ${ENV_FILE} ..."
@@ -113,6 +147,16 @@ S3_ACCESS_KEY=${S3_ACCESS_KEY}
 S3_SECRET_KEY=${S3_SECRET_KEY}
 S3_BUCKET=roka
 S3_PORT=8333
+
+############
+# Centrifugo (real-time multiplexer)
+############
+
+CENTRIFUGO_TOKEN_SECRET=${CENTRIFUGO_TOKEN_SECRET}
+CENTRIFUGO_API_KEY=${CENTRIFUGO_API_KEY}
+CENTRIFUGO_PORT=8000
+CENTRIFUGO_API_URL=http://centrifugo:8000
+NEXT_PUBLIC_CENTRIFUGO_URL=${CENTRIFUGO_PUBLIC_URL}
 ENVEOF
 
 # Generate SeaweedFS S3 auth config (required for storage service)
