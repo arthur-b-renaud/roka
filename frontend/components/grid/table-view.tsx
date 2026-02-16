@@ -38,6 +38,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import { nodeUrl } from "@/lib/slug";
 import { CellRenderer } from "./cell-renderer";
 import { ColumnHeaderMenu } from "./column-header-menu";
 import type {
@@ -222,7 +223,7 @@ export function TableView({
         <div className="group/title flex items-center gap-1">
           <button
             className="flex-1 text-left text-sm font-medium hover:underline"
-            onClick={() => router.push(`/workspace/${row.original.id}`)}
+            onClick={() => router.push(nodeUrl(row.original.title, row.original.id))}
           >
             {row.original.title || (
               <span className="text-muted-foreground">Untitled</span>
@@ -230,7 +231,7 @@ export function TableView({
           </button>
           <button
             className="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-muted group-hover/title:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={() => router.push(`/workspace/${row.original.id}`)}
+            onClick={() => router.push(nodeUrl(row.original.title, row.original.id))}
             aria-label="Open as page"
           >
             <ExternalLink className="h-3 w-3 text-muted-foreground" />
@@ -271,7 +272,7 @@ export function TableView({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem
-              onClick={() => router.push(`/workspace/${row.original.id}`)}
+              onClick={() => router.push(nodeUrl(row.original.title, row.original.id))}
             >
               <ExternalLink className="mr-2 h-3.5 w-3.5" />
               Open as page

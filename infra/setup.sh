@@ -8,6 +8,46 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${SCRIPT_DIR}/.env"
+SEAWEED_S3_JSON="${SCRIPT_DIR}/seaweedfs-s3.json"
+
+# Upgrade path: .env exists but seaweedfs-s3.json missing (e.g. after adding object storage)
+if [ -f "$ENV_FILE" ] && [ ! -f "$SEAWEED_S3_JSON" ]; then
+  echo "Adding object storage config (seaweedfs-s3.json)..."
+  S3_ACCESS_KEY=$(grep -E "^S3_ACCESS_KEY=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  S3_SECRET_KEY=$(grep -E "^S3_SECRET_KEY=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  if [ -z "$S3_ACCESS_KEY" ] || [ -z "$S3_SECRET_KEY" ]; then
+    S3_ACCESS_KEY=$(openssl rand -hex 16)
+    S3_SECRET_KEY=$(openssl rand -hex 32)
+    cat >> "$ENV_FILE" <<ENVAPPEND
+
+############
+# Object Storage (SeaweedFS S3) - auto-added
+############
+
+S3_ENDPOINT=http://storage:8333
+S3_PUBLIC_ENDPOINT=http://localhost:8333
+S3_ACCESS_KEY=${S3_ACCESS_KEY}
+S3_SECRET_KEY=${S3_SECRET_KEY}
+S3_BUCKET=roka
+S3_PORT=8333
+ENVAPPEND
+  fi
+  cat > "$SEAWEED_S3_JSON" <<JSONEOF
+{
+  "identities": [
+    {
+      "name": "roka",
+      "credentials": [
+        { "accessKey": "${S3_ACCESS_KEY}", "secretKey": "${S3_SECRET_KEY}" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
+JSONEOF
+  echo "Created ${SEAWEED_S3_JSON}"
+  exit 0
+fi
 
 if [ -f "$ENV_FILE" ]; then
   echo "infra/.env already exists. Remove it first to regenerate."
@@ -18,6 +58,8 @@ echo "Generating secrets..."
 
 POSTGRES_PASSWORD=$(openssl rand -hex 32)
 NEXTAUTH_SECRET=$(openssl rand -hex 32)
+S3_ACCESS_KEY=$(openssl rand -hex 16)
+S3_SECRET_KEY=$(openssl rand -hex 32)
 
 # Determine public URL based on ROKA_DOMAIN env var
 if [ -n "${ROKA_DOMAIN:-}" ]; then
@@ -60,7 +102,34 @@ NEXTAUTH_URL=${NEXTAUTH_URL}
 
 BACKEND_PORT=8100
 DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+
+############
+# Object Storage (SeaweedFS S3)
+############
+
+S3_ENDPOINT=http://storage:8333
+S3_PUBLIC_ENDPOINT=http://localhost:8333
+S3_ACCESS_KEY=${S3_ACCESS_KEY}
+S3_SECRET_KEY=${S3_SECRET_KEY}
+S3_BUCKET=roka
+S3_PORT=8333
 ENVEOF
+
+# Generate SeaweedFS S3 auth config (required for storage service)
+echo "Writing ${SEAWEED_S3_JSON} ..."
+cat > "$SEAWEED_S3_JSON" <<JSONEOF
+{
+  "identities": [
+    {
+      "name": "roka",
+      "credentials": [
+        { "accessKey": "${S3_ACCESS_KEY}", "secretKey": "${S3_SECRET_KEY}" }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}
+JSONEOF
 
 echo ""
 echo "Done. Your infra/.env is ready."

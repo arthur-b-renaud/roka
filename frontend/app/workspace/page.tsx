@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useCreateAgentTask } from "@/lib/queries/nodes";
+import { nodeUrl } from "@/lib/slug";
 import type { DbNode } from "@/lib/types/database";
 
 export default function WorkspacePage() {
@@ -117,7 +118,7 @@ export default function WorkspacePage() {
           </h2>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {pinnedPages.map((page) => (
-              <PageCard key={page.id} node={page} onClick={() => router.push(`/workspace/${page.id}`)} />
+              <PageCard key={page.id} node={page} onClick={() => router.push(nodeUrl(page.title, page.id))} />
             ))}
           </div>
         </section>
@@ -142,7 +143,7 @@ export default function WorkspacePage() {
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {recentPages.map((page) => (
-              <PageCard key={page.id} node={page} onClick={() => router.push(`/workspace/${page.id}`)} />
+              <PageCard key={page.id} node={page} onClick={() => router.push(nodeUrl(page.title, page.id))} />
             ))}
           </div>
         )}

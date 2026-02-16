@@ -75,16 +75,16 @@ export function ActivityFeed({ userId }: ActivityFeedProps) {
               {formatDistanceToNow(new Date(task.createdAt), { addSuffix: true })}
             </span>
           </div>
-          {task.workflow === "agent" && task.input?.prompt && (
+          {task.workflow === "agent" && task.input?.prompt != null ? (
             <p className="mt-1.5 text-xs text-muted-foreground truncate pl-8">
               {String(task.input.prompt)}
             </p>
-          )}
-          {task.status === "completed" && task.output?.response && (
+          ) : null}
+          {task.status === "completed" && task.output?.response != null ? (
             <p className="mt-1.5 text-sm text-foreground/80 line-clamp-2 pl-8">
               {String(task.output.response)}
             </p>
-          )}
+          ) : null}
           {task.status === "failed" && task.error && (
             <p className="mt-1.5 text-xs text-red-600 dark:text-red-400 truncate pl-8">
               {task.error}

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { ChevronRight, Home } from "lucide-react";
 import Link from "next/link";
+import { nodeUrl } from "@/lib/slug";
 
 interface BreadcrumbsProps {
   nodeId: string;
@@ -56,7 +57,7 @@ export function Breadcrumbs({ nodeId }: BreadcrumbsProps) {
             </span>
           ) : (
             <Link
-              href={`/workspace/${crumb.id}`}
+              href={nodeUrl(crumb.title, crumb.id)}
               className="flex items-center gap-1 hover:text-foreground"
             >
               {crumb.icon && <span className="text-sm">{crumb.icon}</span>}

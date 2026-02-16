@@ -15,6 +15,9 @@ export default auth((req) => {
   }
 
   if (!isPublic && !req.auth) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 

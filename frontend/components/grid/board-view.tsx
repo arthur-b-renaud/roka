@@ -28,6 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { nodeUrl } from "@/lib/slug";
 import { getSelectColor, getSelectColorForValue } from "./cell-renderer";
 import type {
   DbNode,
@@ -257,7 +258,7 @@ export function BoardView({
                 onAddRow(navigate, defaultProps);
               }}
               onDeleteRow={onDeleteRow}
-              onNavigate={(id) => router.push(`/workspace/${id}`)}
+              onNavigate={(row) => router.push(nodeUrl(row.title, row.id))}
             />
           );
         })}
@@ -293,7 +294,7 @@ interface BoardColumnProps {
   schemaColumns: SchemaColumn[];
   onAddRow: (navigate: boolean) => void;
   onDeleteRow: (rowId: string) => void;
-  onNavigate: (id: string) => void;
+  onNavigate: (row: DbNode) => void;
 }
 
 function BoardColumn({
@@ -371,7 +372,7 @@ function SortableBoardCard({
   schemaColumns: SchemaColumn[];
   groupByKey: string;
   options: string[];
-  onNavigate: (id: string) => void;
+  onNavigate: (row: DbNode) => void;
   onDelete: (id: string) => void;
 }) {
   const {
@@ -411,7 +412,7 @@ interface BoardCardProps {
   groupByKey: string;
   options: string[];
   isDragOverlay?: boolean;
-  onNavigate: (id: string) => void;
+  onNavigate: (row: DbNode) => void;
   onDelete: (id: string) => void;
 }
 
@@ -449,7 +450,7 @@ function BoardCard({
         <button
           type="button"
           className="flex-1 text-left text-sm font-medium leading-snug hover:underline"
-          onClick={() => onNavigate(row.id)}
+          onClick={() => onNavigate(row)}
         >
           {row.title || (
             <span className="text-muted-foreground">Untitled</span>
@@ -466,7 +467,7 @@ function BoardCard({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
-            <DropdownMenuItem onClick={() => onNavigate(row.id)}>
+            <DropdownMenuItem onClick={() => onNavigate(row)}>
               <ExternalLink className="mr-2 h-3.5 w-3.5" />
               Open
             </DropdownMenuItem>

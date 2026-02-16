@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useConvertToDatabase } from "@/lib/hooks/use-create-database";
-import { Smile, MoreHorizontal, Database } from "lucide-react";
+import { Smile, MoreHorizontal, Database, ImagePlus } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
 interface PageHeaderProps {
@@ -63,6 +63,26 @@ export function PageHeader({ node }: PageHeaderProps) {
     [node.id, queryClient]
   );
 
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !file.type.startsWith("image/")) return;
+      const form = new FormData();
+      form.append("file", file);
+      form.append("nodeId", node.id);
+      const res = await fetch("/api/files", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = (await res.json()) as { url: string };
+      await api.nodes.update(node.id, { coverUrl: data.url });
+      queryClient.invalidateQueries({ queryKey: ["node", node.id] });
+      queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
+      e.target.value = "";
+    },
+    [node.id, queryClient]
+  );
+
   const handleConvertClick = () => {
     const hasContent = Array.isArray(node.content) && node.content.length > 0;
     if (hasContent) {
@@ -79,14 +99,40 @@ export function PageHeader({ node }: PageHeaderProps) {
 
   return (
     <div className="mb-4 space-y-1.5">
-      {node.coverUrl && (
-        <div className="relative h-[200px] w-full overflow-hidden rounded-lg">
+      <input
+        ref={coverInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleCoverUpload}
+      />
+      {node.coverUrl ? (
+        <div className="group/cover relative h-[200px] w-full overflow-hidden rounded-lg">
           <img
             src={node.coverUrl}
             alt=""
             className="h-full w-full object-cover"
           />
+          <button
+            type="button"
+            className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+            onClick={() => coverInputRef.current?.click()}
+            aria-label="Change cover"
+          >
+            <ImagePlus className="h-4 w-4 text-white" />
+            <span className="text-sm text-white">Change cover</span>
+          </button>
         </div>
+      ) : (
+        <button
+          type="button"
+          className="group/cover flex w-full items-center justify-center gap-1 rounded-lg border border-dashed py-8 text-sm text-muted-foreground opacity-60 transition-opacity hover:border-muted-foreground/30 hover:opacity-100 [div:hover>&]:opacity-100"
+          onClick={() => coverInputRef.current?.click()}
+          aria-label="Add cover"
+        >
+          <ImagePlus className="h-4 w-4" />
+          Add cover
+        </button>
       )}
 
       {!node.icon && (

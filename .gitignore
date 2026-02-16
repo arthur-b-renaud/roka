@@ -216,6 +216,7 @@ frontend/node_modules/
 # Infra secrets & generated config
 infra/.env
 infra/Caddyfile
+infra/seaweedfs-s3.json
 
 # Docker volumes
 docker-data/

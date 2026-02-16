@@ -10,6 +10,7 @@ import {
   text,
   boolean,
   integer,
+  bigint,
   timestamp,
   jsonb,
   uniqueIndex,
@@ -148,6 +149,17 @@ export const databaseViews = pgTable("database_views", {
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const files = pgTable("files", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  nodeId: uuid("node_id").references(() => nodes.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  mimeType: text("mime_type").notNull().default("application/octet-stream"),
+  sizeBytes: bigint("size_bytes", { mode: "number" }).notNull().default(0),
+  s3Key: text("s3_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // ── Zone C: Agent State ────────────────────────────────
@@ -291,6 +303,7 @@ export const telemetrySpans = pgTable("telemetry_spans", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   nodes: many(nodes),
+  files: many(files),
   agentTasks: many(agentTasks),
   accounts: many(accounts),
   sessions: many(sessions),
@@ -305,6 +318,12 @@ export const nodesRelations = relations(nodes, ({ one, many }) => ({
   owner: one(users, { fields: [nodes.ownerId], references: [users.id] }),
   databaseDefinition: one(databaseDefinitions, { fields: [nodes.id], references: [databaseDefinitions.nodeId] }),
   views: many(databaseViews),
+  files: many(files),
+}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  owner: one(users, { fields: [files.ownerId], references: [users.id] }),
+  node: one(nodes, { fields: [files.nodeId], references: [nodes.id] }),
 }));
 
 export const databaseDefinitionsRelations = relations(databaseDefinitions, ({ one }) => ({

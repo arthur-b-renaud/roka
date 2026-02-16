@@ -13,6 +13,9 @@ setup:
 	@if [ ! -f infra/.env ]; then \
 		echo "Running first-time setup..."; \
 		cd infra && ./setup.sh; \
+	elif [ ! -f infra/seaweedfs-s3.json ]; then \
+		echo "Adding object storage config..."; \
+		cd infra && ./setup.sh || true; \
 	else \
 		echo "Setup already complete (infra/.env exists)."; \
 	fi

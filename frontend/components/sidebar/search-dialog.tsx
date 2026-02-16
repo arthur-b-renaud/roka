@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FileText, Database } from "lucide-react";
+import { nodeUrl } from "@/lib/slug";
 import type { SearchResult } from "@/lib/types/database";
 
 export function SearchDialog() {
@@ -57,7 +58,7 @@ export function SearchDialog() {
 
   const navigateToResult = useCallback(
     (result: SearchResult) => {
-      router.push(`/workspace/${result.id}`);
+      router.push(nodeUrl(result.title, result.id));
       setOpen(false);
       setQuery("");
     },

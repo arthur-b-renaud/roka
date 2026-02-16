@@ -56,6 +56,7 @@ import {
   PanelRightOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { nodeUrl } from "@/lib/slug";
 import type { DbNode } from "@/lib/types/database";
 import { formatDistanceToNow } from "date-fns";
 
@@ -280,9 +281,9 @@ const TreeNode = memo(function TreeNode({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  const isActive = pathname === `/workspace/${node.id}`;
+  const nodeLink = nodeUrl(node.title, node.id);
+  const isActive = pathname === nodeLink;
   const Icon = nodeIcons[node.type] ?? FileText;
-  const nodeUrl = `/workspace/${node.id}`;
 
   const childTypes =
     node.type === "database"
@@ -303,7 +304,7 @@ const TreeNode = memo(function TreeNode({
   });
 
   const toggleExpand = useCallback(() => setExpanded((prev) => !prev), []);
-  const navigate = useCallback(() => router.push(nodeUrl), [router, nodeUrl]);
+  const navigate = useCallback(() => router.push(nodeLink), [router, nodeLink]);
 
   const handleIconChange = useCallback(
     async (emoji: string | null) => {
@@ -323,10 +324,10 @@ const TreeNode = memo(function TreeNode({
   }, [node.id, node.isPinned, queryClient, toast]);
 
   const handleCopyLink = useCallback(() => {
-    const url = `${window.location.origin}${nodeUrl}`;
+    const url = `${window.location.origin}${nodeLink}`;
     navigator.clipboard.writeText(url);
     toast("Link copied to clipboard");
-  }, [nodeUrl, toast]);
+  }, [nodeLink, toast]);
 
   const handleDuplicate = useCallback(async () => {
     if (!userId) return;
@@ -341,7 +342,7 @@ const TreeNode = memo(function TreeNode({
     queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
     queryClient.invalidateQueries({ queryKey: ["node-children"] });
     toast("Page duplicated");
-    router.push(`/workspace/${newNode.id}`);
+    router.push(nodeUrl((newNode as DbNode).title, (newNode as DbNode).id));
   }, [userId, node, queryClient, toast, router]);
 
   const startRename = useCallback(() => {
@@ -368,12 +369,12 @@ const TreeNode = memo(function TreeNode({
   }, [node.id, queryClient, toast, isActive, router]);
 
   const handleOpenNewTab = useCallback(() => {
-    window.open(`${window.location.origin}${nodeUrl}`, "_blank");
-  }, [nodeUrl]);
+    window.open(`${window.location.origin}${nodeLink}`, "_blank");
+  }, [nodeLink]);
 
   const handleOpenSidePeek = useCallback(() => {
-    window.open(`${window.location.origin}${nodeUrl}`, "_blank", "width=480,height=720");
-  }, [nodeUrl]);
+    window.open(`${window.location.origin}${nodeLink}`, "_blank", "width=480,height=720");
+  }, [nodeLink]);
 
   const handleAddChild = useCallback(async () => {
     if (!userId) return;
@@ -387,7 +388,7 @@ const TreeNode = memo(function TreeNode({
     setExpanded(true);
     queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
     queryClient.invalidateQueries({ queryKey: ["node-children"] });
-    router.push(`/workspace/${newNode.id}`);
+    router.push(nodeUrl((newNode as DbNode).title, (newNode as DbNode).id));
   }, [userId, node.id, queryClient, router]);
 
   useEffect(() => {

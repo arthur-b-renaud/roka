@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { nodeUrl } from "@/lib/slug";
 import { AddColumnDialog } from "./add-column-dialog";
 import { TableToolbar } from "./table-toolbar";
 import { ViewTabs } from "./view-tabs";
@@ -201,7 +202,7 @@ export function DatabaseView({ node }: DatabaseViewProps) {
     },
     onSuccess: ({ node: newRow, navigate }) => {
       queryClient.invalidateQueries({ queryKey: ["db-rows", node.id] });
-      if (navigate) router.push(`/workspace/${newRow.id}`);
+      if (navigate) router.push(nodeUrl(newRow.title, newRow.id));
     },
   });
 

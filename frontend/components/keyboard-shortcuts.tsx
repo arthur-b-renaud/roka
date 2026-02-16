@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { nodeUrl } from "@/lib/slug";
 import type { DbNode } from "@/lib/types/database";
 
 /**
@@ -26,7 +27,7 @@ export function KeyboardShortcuts() {
     },
     onSuccess: (node) => {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
-      router.push(`/workspace/${node.id}`);
+      router.push(nodeUrl(node.title, node.id));
     },
   });
 

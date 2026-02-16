@@ -10,12 +10,13 @@ import { EditorErrorBoundary } from "@/components/editor/error-boundary";
 import { DatabaseView } from "@/components/grid/database-view";
 import { DatabaseRowPage } from "@/components/grid/database-row-page";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dbNodeSchema, uuidSchema, type DbNode } from "@/lib/types/database";
+import { dbNodeSchema, type DbNode } from "@/lib/types/database";
+import { parseNodeId } from "@/lib/slug";
 
 export default function NodePage() {
   const params = useParams();
-  const rawNodeId = params.nodeId as string;
-  const nodeId = uuidSchema.safeParse(rawNodeId).success ? rawNodeId : "";
+  const rawSlug = params.slug as string;
+  const nodeId = parseNodeId(rawSlug) ?? "";
 
   const { data: node, isLoading, error } = useQuery<DbNode>({
     queryKey: ["node", nodeId],

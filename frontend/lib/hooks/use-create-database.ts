@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCurrentUser } from "./use-current-user";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { nodeUrl } from "@/lib/slug";
 import type { DbNode, ViewConfig } from "@/lib/types/database";
 
 const DEFAULT_VIEW_CONFIG: ViewConfig = {
@@ -51,7 +52,7 @@ export function useCreateDatabase() {
     },
     onSuccess: (node) => {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
-      router.push(`/workspace/${node.id}`);
+      router.push(nodeUrl(node.title, node.id));
     },
     onError: (err) => {
       toast(err instanceof Error ? err.message : "Failed to create database", "error");

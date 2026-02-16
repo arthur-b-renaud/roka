@@ -114,6 +114,17 @@ export const appSettingSchema = z.object({
   updatedAt: z.string(),
 });
 
+export const dbFileSchema = z.object({
+  id: z.string().uuid(),
+  ownerId: z.string().uuid(),
+  nodeId: z.string().uuid().nullable(),
+  name: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().min(0),
+  s3Key: z.string(),
+  createdAt: z.string(),
+});
+
 // Param validation
 export const uuidSchema = z.string().uuid();
 
@@ -132,3 +143,4 @@ export type ViewConfig = z.infer<typeof viewConfigSchema>;
 export type DbDatabaseView = z.infer<typeof dbDatabaseViewSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export type AppSetting = z.infer<typeof appSettingSchema>;
+export type DbFile = z.infer<typeof dbFileSchema>;

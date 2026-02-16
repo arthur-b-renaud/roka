@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCreateDatabase } from "@/lib/hooks/use-create-database";
 import { api } from "@/lib/api";
+import { nodeUrl } from "@/lib/slug";
 import {
   Plus,
   Search,
@@ -65,7 +66,7 @@ export function Sidebar() {
     },
     onSuccess: (node) => {
       queryClient.invalidateQueries({ queryKey: ["sidebar-pages"] });
-      router.push(`/workspace/${node.id}`);
+      router.push(nodeUrl(node.title, node.id));
     },
     onError: (err) => {
       toast(err instanceof Error ? err.message : "Failed to create page", "error");
