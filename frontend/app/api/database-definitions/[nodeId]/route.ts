@@ -4,17 +4,26 @@ import { eq, and } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
 
-// GET /api/database-definitions/:nodeId
+// GET /api/database-definitions/:nodeId — single query with ownership join
 export const GET = h.GET(async (userId, _req, ctx) => {
   const { nodeId } = ctx.params;
 
-  const [node] = await db.select({ id: nodes.id }).from(nodes)
-    .where(and(eq(nodes.id, nodeId), eq(nodes.ownerId, userId))).limit(1);
-  if (!node) throw new Error("Not found");
-
-  const [def] = await db.select().from(databaseDefinitions)
-    .where(eq(databaseDefinitions.nodeId, nodeId)).limit(1);
-  return def ?? null;
+  const [row] = await db
+    .select({
+      id: databaseDefinitions.id,
+      nodeId: databaseDefinitions.nodeId,
+      schemaConfig: databaseDefinitions.schemaConfig,
+      createdAt: databaseDefinitions.createdAt,
+      updatedAt: databaseDefinitions.updatedAt,
+    })
+    .from(databaseDefinitions)
+    .innerJoin(nodes, eq(nodes.id, databaseDefinitions.nodeId))
+    .where(and(
+      eq(databaseDefinitions.nodeId, nodeId),
+      eq(nodes.ownerId, userId)
+    ))
+    .limit(1);
+  return row ?? null;
 });
 
 const updateSchema = z.object({

@@ -18,6 +18,8 @@ export const api = {
       fetch("/api/nodes?" + new URLSearchParams(params)).then(handleResponse),
     get: (id: string) =>
       fetch(`/api/nodes/${id}`).then(handleResponse),
+    breadcrumbs: (id: string) =>
+      fetch(`/api/nodes/${id}/breadcrumbs`).then(handleResponse),
     create: (data: Record<string, unknown>) =>
       fetch("/api/nodes", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     update: (id: string, data: Record<string, unknown>) =>

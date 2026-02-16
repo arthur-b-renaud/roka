@@ -8,7 +8,6 @@ import {
   useCreateConversation,
   useSendMessage,
 } from "@/lib/hooks/use-conversations";
-import { useRealtime } from "@/lib/hooks/use-realtime";
 import { MessageBubble } from "./message-bubble";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,6 @@ import type { DbConversation } from "@/lib/types/agent";
 
 export function ChatPanel() {
   const { userId } = useCurrentUser();
-  useRealtime();
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [showList, setShowList] = useState(true);

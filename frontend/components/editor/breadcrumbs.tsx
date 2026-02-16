@@ -19,23 +19,7 @@ interface Crumb {
 export function Breadcrumbs({ nodeId }: BreadcrumbsProps) {
   const { data: crumbs = [] } = useQuery<Crumb[]>({
     queryKey: ["breadcrumbs", nodeId],
-    queryFn: async () => {
-      const path: Crumb[] = [];
-      let currentId: string | null = nodeId;
-
-      for (let i = 0; i < 10 && currentId; i++) {
-        const data = await api.nodes.get(currentId);
-        if (!data) break;
-        path.unshift({
-          id: data.id,
-          title: data.title || "Untitled",
-          icon: data.icon ?? null,
-        });
-        currentId = data.parentId ?? null;
-      }
-
-      return path;
-    },
+    queryFn: () => api.nodes.breadcrumbs(nodeId),
   });
 
   return (

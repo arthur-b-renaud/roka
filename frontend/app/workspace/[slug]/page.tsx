@@ -1,15 +1,26 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { PageEditor } from "@/components/editor/page-editor";
 import { PageHeader } from "@/components/editor/page-header";
 import { Breadcrumbs } from "@/components/editor/breadcrumbs";
 import { EditorErrorBoundary } from "@/components/editor/error-boundary";
-import { DatabaseView } from "@/components/grid/database-view";
-import { DatabaseRowPage } from "@/components/grid/database-row-page";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const PageEditor = dynamic(
+  () => import("@/components/editor/page-editor").then((m) => ({ default: m.PageEditor })),
+  { ssr: false }
+);
+const DatabaseView = dynamic(
+  () => import("@/components/grid/database-view").then((m) => ({ default: m.DatabaseView })),
+  { ssr: false }
+);
+const DatabaseRowPage = dynamic(
+  () => import("@/components/grid/database-row-page").then((m) => ({ default: m.DatabaseRowPage })),
+  { ssr: false }
+);
 import { dbNodeSchema, type DbNode } from "@/lib/types/database";
 import { parseNodeId } from "@/lib/slug";
 

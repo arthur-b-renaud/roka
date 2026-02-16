@@ -4,20 +4,16 @@ import { auth } from "@/lib/auth";
 export default auth((req) => {
   const { pathname } = req.nextUrl;
 
+  // /api excluded from matcher — api-handler enforces auth there
   const isPublic =
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/setup") ||
-    pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/app-settings");
+    pathname.startsWith("/setup");
 
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/workspace", req.url));
   }
 
   if (!isPublic && !req.auth) {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     return NextResponse.redirect(new URL("/auth/login", req.url));
   }
 
@@ -33,7 +29,8 @@ export default auth((req) => {
 });
 
 export const config = {
+  // Exclude /api — handler enforces auth; avoids duplicate auth() call per request
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useRecentPages, usePinnedPages } from "@/lib/queries/nodes";
 import { useSetupComplete } from "@/lib/hooks/use-app-settings";
-import { useRealtime } from "@/lib/hooks/use-realtime";
 import { ChatPanel } from "@/components/chat/chat-panel";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,6 @@ import type { DbNode } from "@/lib/types/database";
 export default function WorkspacePage() {
   const router = useRouter();
   const { userId } = useCurrentUser();
-  useRealtime();
 
   const { data: recentPages = [], isLoading: loadingRecent } = useRecentPages(userId);
   const { data: pinnedPages = [] } = usePinnedPages(userId);

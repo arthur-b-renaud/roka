@@ -29,7 +29,7 @@ export function useMessages(conversationId: string | null) {
     },
     enabled: !!conversationId,
     staleTime: 5_000,
-    refetchInterval: 3_000, // Poll for new messages while conversation is active
+    // Realtime invalidates on new_message; no polling when Centrifugo is active
   });
 }
 
