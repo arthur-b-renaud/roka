@@ -14,7 +14,6 @@ import {
   Trash2,
   X,
   Key,
-  Mail,
   Globe,
   Lock,
 } from "lucide-react";
@@ -24,14 +23,15 @@ const credentialsArraySchema = z.array(dbCredentialSchema);
 
 const SERVICE_ICONS: Record<string, React.ReactNode> = {
   llm: <Globe className="h-4 w-4" />,
-  smtp: <Mail className="h-4 w-4" />,
   openai: <Globe className="h-4 w-4" />,
+  google: <Globe className="h-4 w-4" />,
+  slack: <Globe className="h-4 w-4" />,
+  stripe: <Key className="h-4 w-4" />,
   default: <Key className="h-4 w-4" />,
 };
 
 const CREDENTIAL_TEMPLATES: { service: string; type: string; label: string; fields: string[] }[] = [
   { service: "llm", type: "api_key", label: "LLM / AI Provider", fields: ["provider", "model", "api_key", "api_base"] },
-  { service: "smtp", type: "smtp", label: "Email / SMTP", fields: ["host", "port", "user", "password", "from_email"] },
   { service: "custom", type: "api_key", label: "Custom API Key", fields: ["api_key"] },
 ];
 
@@ -97,7 +97,7 @@ export function CredentialsSection() {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Encrypted secrets for LLM, SMTP, and external API integrations. Secrets are encrypted at rest.
+        Encrypted secrets for LLM providers and external API integrations. Secrets are encrypted at rest.
       </p>
 
       {/* Credential list */}

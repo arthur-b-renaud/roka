@@ -3,19 +3,25 @@ Credential vault: Fernet-encrypted secrets stored in PostgreSQL.
 
 Encrypt/decrypt credentials at the application layer.
 Master key from ROKA_VAULT_KEY env var -- never stored in DB.
+OAuth token refresh for google/slack providers.
 """
 
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from cryptography.fernet import Fernet, InvalidToken
 
 from app.config import settings
 from app.db import get_pool
 
 logger = logging.getLogger(__name__)
+
+# Buffer before expiry to refresh proactively (seconds)
+OAUTH_REFRESH_BUFFER_SEC = 300
 
 _fernet: Fernet | None = None
 
@@ -128,6 +134,103 @@ async def get_credential_decrypted(credential_id: str) -> dict[str, Any]:
         "config": config,
         "is_active": row["is_active"],
     }
+
+
+def _is_oauth_expired(config: dict[str, Any]) -> bool:
+    """True if OAuth token is expired or within refresh buffer."""
+    expires_at = config.get("expires_at")
+    if not expires_at:
+        return False
+    try:
+        if isinstance(expires_at, str):
+            exp = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        else:
+            exp = expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        return (exp.timestamp() - OAUTH_REFRESH_BUFFER_SEC) <= datetime.now(timezone.utc).timestamp()
+    except (TypeError, ValueError):
+        return True
+
+
+async def _refresh_google_token(config: dict[str, Any]) -> dict[str, Any]:
+    """Refresh Google OAuth token. Returns updated config with new tokens."""
+    token_uri = config.get("token_uri") or "https://oauth2.googleapis.com/token"
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            token_uri,
+            data={
+                "grant_type": "refresh_token",
+                "client_id": config["client_id"],
+                "client_secret": config["client_secret"],
+                "refresh_token": config["refresh_token"],
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        r.raise_for_status()
+        data = r.json()
+    new_config = dict(config)
+    new_config["access_token"] = data["access_token"]
+    if "expires_in" in data:
+        from datetime import timedelta
+
+        exp = datetime.now(timezone.utc) + timedelta(seconds=data["expires_in"])
+        new_config["expires_at"] = exp.isoformat()
+    return new_config
+
+
+async def _refresh_slack_token(config: dict[str, Any]) -> dict[str, Any]:
+    """Refresh Slack OAuth token via oauth.v2.access. Returns updated config."""
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            "https://slack.com/api/oauth.v2.access",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": config["client_id"],
+                "client_secret": config["client_secret"],
+                "refresh_token": config["refresh_token"],
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        r.raise_for_status()
+        data = r.json()
+    if not data.get("ok"):
+        raise ValueError(data.get("error", "Slack token refresh failed"))
+    new_config = dict(config)
+    new_config["access_token"] = data["access_token"]
+    if "expires_in" in data:
+        from datetime import timedelta
+
+        exp = datetime.now(timezone.utc) + timedelta(seconds=data["expires_in"])
+        new_config["expires_at"] = exp.isoformat()
+    return new_config
+
+
+async def ensure_valid_token(credential_id: str, owner_id: str) -> str:
+    """
+    Fetch credential, refresh OAuth token if expired, update DB, return access_token.
+    For api_key/Stripe: returns config['api_key'] or config['access_token'].
+    """
+    cred = await get_credential_decrypted(credential_id)
+    if cred["owner_id"] != owner_id:
+        raise ValueError("Credential owner mismatch")
+    config = cred["config"]
+    cred_type = cred["type"]
+    service = cred["service"]
+
+    if cred_type == "oauth2" and _is_oauth_expired(config):
+        provider = service.lower()
+        if provider in ("google", "gmail"):
+            config = await _refresh_google_token(config)
+        elif provider == "slack":
+            config = await _refresh_slack_token(config)
+        else:
+            raise ValueError(f"OAuth refresh not implemented for provider: {provider}")
+        await update_credential(credential_id, owner_id, config=config)
+
+    if cred_type == "oauth2":
+        return config.get("access_token") or ""
+    return config.get("api_key") or config.get("access_token") or ""
 
 
 async def get_credentials_by_service(service: str, owner_id: str) -> list[dict[str, Any]]:

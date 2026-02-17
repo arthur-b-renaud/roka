@@ -30,6 +30,8 @@ import {
   FileText,
   Database,
   Bot,
+  Wrench,
+  Activity,
 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
@@ -130,6 +132,20 @@ export function Sidebar() {
         >
           <Bot className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
           Agents
+        </button>
+        <button
+          onClick={() => router.push("/workspace/tools")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+        >
+          <Wrench className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Tools
+        </button>
+        <button
+          onClick={() => router.push("/workspace/executions")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+        >
+          <Activity className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Executions
         </button>
         <button
           onClick={() => router.push("/workspace/settings")}

@@ -14,6 +14,7 @@ from langchain_core.tools import StructuredTool
 
 from app.db import get_pool
 from graph.tools.http_tool import build_http_tool
+from graph.tools.platform_tool import build_platform_tool
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ def _load_builtin_map() -> None:
         return
     from graph.tools.knowledge_base import search_knowledge_base, find_entities, get_communications
     from graph.tools.workspace import create_node, update_node_properties
-    from graph.tools.email import send_email
 
     BUILTIN_TOOL_MAP.update({
         "search_knowledge_base": search_knowledge_base,
@@ -35,7 +35,6 @@ def _load_builtin_map() -> None:
         "get_communications": get_communications,
         "create_node": create_node,
         "update_node_properties": update_node_properties,
-        "send_email": send_email,
     })
 
 
@@ -65,11 +64,6 @@ BUILTIN_SEED = [
         "name": "update_node_properties",
         "display_name": "Update Node Properties",
         "description": "Update metadata/properties on an existing node.",
-    },
-    {
-        "name": "send_email",
-        "display_name": "Send Email",
-        "description": "Send an outbound email via SMTP.",
     },
 ]
 
@@ -136,6 +130,22 @@ async def load_tools_for_agent(
                 tools.append(http_tool)
             except Exception as e:
                 logger.warning("Failed to build HTTP tool '%s': %s", tool_name, e)
+
+        elif tool_type == "platform":
+            try:
+                result = await build_platform_tool(
+                    name=tool_name,
+                    config=dict(row["config"]) if row["config"] else {},
+                    owner_id=owner_id,
+                )
+                if result is None:
+                    pass
+                elif isinstance(result, list):
+                    tools.extend(result)
+                else:
+                    tools.append(result)
+            except Exception as e:
+                logger.warning("Failed to build platform tool '%s': %s", tool_name, e)
 
     return tools
 

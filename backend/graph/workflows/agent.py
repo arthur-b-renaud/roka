@@ -9,6 +9,7 @@ Agent definitions configure persona, model, and available tools.
 import json
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -31,12 +32,11 @@ DEFAULT_SYSTEM_PROMPT = """You are Roka, an AI workspace assistant. You help use
 - Find and look up contacts (entities) and their communication history
 - Create new pages and tasks in the workspace
 - Update properties on existing pages (status, priority, dates, etc.)
-- Send emails to contacts
+- Use any external tools that have been configured (Gmail, Slack, search, etc.)
 
 ## Guidelines
 - Always search the knowledge base first when a user asks about existing content.
 - When creating tasks, set clear titles and relevant properties.
-- When sending emails, confirm the recipient and content make sense.
 - Be concise and action-oriented. Summarize what you did after completing actions.
 - If you lack information to complete a request, say so clearly rather than guessing.
 """
@@ -252,16 +252,74 @@ async def run_agent_workflow(
                 config=config,
             )
 
-        # Extract final response
+        # Extract final response + build execution trace.
+        # result_messages includes the full history (input + new). We only trace
+        # messages produced by *this* invocation: skip the first len(messages)
+        # entries which are the input we sent.
         result_messages = result.get("messages", [])
+        new_messages = result_messages[len(messages):]
         final_text = ""
-        for msg in reversed(result_messages):
-            if hasattr(msg, "content") and msg.content:
-                tool_calls = getattr(msg, "tool_calls", None)
-                if tool_calls:
-                    continue
+        trace_log = []
+        step = 0
+
+        for msg in new_messages:
+            msg_type = type(msg).__name__
+            # Use message response_metadata timestamp when available,
+            # fall back to wall-clock
+            ts = datetime.now(timezone.utc).isoformat()
+
+            # Tool call requests (AIMessage with tool_calls)
+            tool_calls = getattr(msg, "tool_calls", None)
+            if tool_calls:
+                # Capture reasoning before tool calls if present
+                if hasattr(msg, "content") and msg.content:
+                    step += 1
+                    trace_log.append({
+                        "step": step,
+                        "type": "thinking",
+                        "content": str(msg.content)[:4000],
+                        "ts": ts,
+                    })
+                for tc in tool_calls:
+                    step += 1
+                    trace_log.append({
+                        "step": step,
+                        "type": "tool_call",
+                        "tool": tc.get("name", "unknown"),
+                        "input": tc.get("args", {}),
+                        "ts": ts,
+                    })
+                continue
+
+            # Tool results
+            if msg_type == "ToolMessage":
+                step += 1
+                trace_log.append({
+                    "step": step,
+                    "type": "tool_result",
+                    "tool": getattr(msg, "name", "unknown"),
+                    "output": str(msg.content)[:4000] if hasattr(msg, "content") else "",
+                    "ts": ts,
+                })
+                continue
+
+            # Final AI response (no tool calls)
+            if msg_type == "AIMessage" and hasattr(msg, "content") and msg.content:
                 final_text = msg.content
-                break
+                step += 1
+                trace_log.append({
+                    "step": step,
+                    "type": "response",
+                    "content": str(msg.content)[:4000],
+                    "ts": ts,
+                })
+
+        # Persist trace_log to agent_tasks
+        pool = get_pool()
+        trace_json = json.dumps(trace_log, default=str)
+        await pool.execute("""
+            UPDATE agent_tasks SET trace_log = $1::jsonb WHERE id = $2
+        """, trace_json, uuid.UUID(task_id))
 
         # Save assistant response to conversation
         if conversation_id:
@@ -271,7 +329,6 @@ async def run_agent_workflow(
             )
 
         # Audit log
-        pool = get_pool()
         await pool.execute("""
             INSERT INTO writes (task_id, table_name, row_id, operation, new_data, actor_type, actor_id)
             VALUES ($1, 'agent_tasks', $2, 'UPDATE', $3::jsonb, 'agent', $1)

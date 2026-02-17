@@ -178,6 +178,8 @@ export const agentTasks = pgTable("agent_tasks", {
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+  traceLog: jsonb("trace_log").notNull().default([]),
+  s3TraceKey: text("s3_trace_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -222,7 +224,7 @@ export const credentials = pgTable("credentials", {
 
 // ── Zone F: Tool Definitions ───────────────────────────
 
-export const toolTypeEnum = pgEnum("tool_type", ["builtin", "http", "custom"]);
+export const toolTypeEnum = pgEnum("tool_type", ["builtin", "http", "custom", "platform"]);
 
 export const toolDefinitions = pgTable("tool_definitions", {
   id: uuid("id").defaultRandom().primaryKey(),

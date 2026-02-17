@@ -28,7 +28,7 @@ export type CreateCredentialInput = z.infer<typeof createCredentialSchema>;
 
 // ── Tool Definition Types ───────────────────────────────
 
-export const toolTypeSchema = z.enum(["builtin", "http", "custom"]);
+export const toolTypeSchema = z.enum(["builtin", "http", "custom", "platform"]);
 
 export const dbToolDefinitionSchema = z.object({
   id: z.string().uuid(),

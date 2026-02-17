@@ -206,26 +206,57 @@ export default function AgentsPage() {
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Wrench className="h-3.5 w-3.5" />
-              Tools (empty = all available)
+              Tools <span className="text-muted-foreground font-normal text-xs">(empty = all available)</span>
             </Label>
-            <div className="grid grid-cols-2 gap-2">
-              {tools.filter((t) => t.isActive).map((tool) => (
-                <label
-                  key={tool.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    form.toolIds.includes(tool.id) ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.toolIds.includes(tool.id)}
-                    onChange={() => toggleTool(tool.id)}
-                    className="rounded"
-                  />
-                  {tool.displayName}
-                </label>
-              ))}
-            </div>
+            {(() => {
+              const activeTools = tools.filter((t) => t.isActive);
+              const builtin = activeTools.filter((t) => t.type === "builtin");
+              const others = activeTools.filter((t) => t.type !== "builtin");
+              return (
+                <div className="space-y-2">
+                  {builtin.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Built-in</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {builtin.map((tool) => (
+                          <label
+                            key={tool.id}
+                            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                              form.toolIds.includes(tool.id) ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                            }`}
+                          >
+                            <input type="checkbox" checked={form.toolIds.includes(tool.id)} onChange={() => toggleTool(tool.id)} className="rounded" />
+                            {tool.displayName}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {others.length > 0 && (
+                    <>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mt-2">Platform / Custom</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {others.map((tool) => (
+                          <label
+                            key={tool.id}
+                            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                              form.toolIds.includes(tool.id) ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                            }`}
+                          >
+                            <input type="checkbox" checked={form.toolIds.includes(tool.id)} onChange={() => toggleTool(tool.id)} className="rounded" />
+                            {tool.displayName}
+                            <Badge variant="outline" className="ml-auto text-[9px]">{tool.type}</Badge>
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {activeTools.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No active tools. Go to Tools to install some.</p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           <Button
@@ -287,14 +318,24 @@ export default function AgentsPage() {
                   {agent.systemPrompt}
                 </p>
               )}
-              <div className="flex items-center gap-2 pl-11">
+              <div className="flex items-center gap-2 pl-11 flex-wrap">
                 <span className="text-[10px] text-muted-foreground">
                   {formatDistanceToNow(new Date(agent.createdAt), { addSuffix: true })}
                 </span>
-                {agent.toolIds && agent.toolIds.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {agent.toolIds.length} tool{agent.toolIds.length > 1 ? "s" : ""}
-                  </span>
+                {agent.toolIds && agent.toolIds.length > 0 ? (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <Wrench className="h-3 w-3 text-muted-foreground" />
+                    {agent.toolIds.map((tid) => {
+                      const t = tools.find((tool) => tool.id === tid);
+                      return (
+                        <Badge key={tid} variant="secondary" className="text-[9px] px-1.5 py-0">
+                          {t?.displayName ?? "Unknown"}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground/60">all tools</span>
                 )}
               </div>
             </div>

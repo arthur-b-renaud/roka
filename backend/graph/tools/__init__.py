@@ -10,7 +10,6 @@ from graph.tools.knowledge_base import (
     get_communications,
 )
 from graph.tools.workspace import create_node, update_node_properties
-from graph.tools.email import send_email
 
 ALL_TOOLS = [
     search_knowledge_base,
@@ -18,5 +17,4 @@ ALL_TOOLS = [
     get_communications,
     create_node,
     update_node_properties,
-    send_email,
 ]

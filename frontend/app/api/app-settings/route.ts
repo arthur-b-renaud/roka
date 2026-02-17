@@ -8,7 +8,6 @@ import { z } from "zod";
 const ALLOWED_KEYS = [
   "setup_complete", "llm_provider", "llm_model", "llm_api_base",
   "llm_api_key", "llm_configured",
-  "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from_email",
 ] as const;
 
 // GET /api/app-settings — public (for setup_complete check before auth)

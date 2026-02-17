@@ -17,6 +17,7 @@ from app.services.checkpointer import init_checkpointer, close_checkpointer
 from app.services.telemetry import init_telemetry
 from graph.tools.registry import seed_builtin_tools
 from app.routes.webhooks import router as webhooks_router
+from app.routes.oauth import router as oauth_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,6 +94,7 @@ app.add_middleware(
 )
 
 app.include_router(webhooks_router, prefix="/api/webhooks", tags=["webhooks"])
+app.include_router(oauth_router, prefix="/api/oauth", tags=["oauth"])
 
 
 @app.get("/health")

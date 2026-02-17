@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { toolDefinitions } from "@/lib/db/schema";
-import { eq, or, isNull, desc } from "drizzle-orm";
+import { eq, and, or, isNull, desc } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
 
@@ -22,7 +22,7 @@ const createSchema = z.object({
   name: z.string().min(1),
   displayName: z.string().min(1),
   description: z.string().default(""),
-  type: z.enum(["http", "custom"]).default("http"),
+  type: z.enum(["http", "custom", "platform"]).default("http"),
   config: z.record(z.unknown()).default({}),
   credentialId: z.string().uuid().nullable().optional(),
 });
@@ -50,11 +50,30 @@ const toggleSchema = z.object({
 });
 
 // PATCH /api/tool-definitions -- toggle active state
+// System tools (ownerId IS NULL) can be toggled by any user.
+// User tools can only be toggled by the owner.
 export const PATCH = h.mutation(async (data, userId) => {
   const [tool] = await db
     .update(toolDefinitions)
     .set({ isActive: data.isActive })
-    .where(eq(toolDefinitions.id, data.id))
+    .where(
+      and(
+        eq(toolDefinitions.id, data.id),
+        or(isNull(toolDefinitions.ownerId), eq(toolDefinitions.ownerId, userId)),
+      ),
+    )
     .returning();
   return tool;
 }, { schema: toggleSchema });
+
+const deleteSchema = z.object({
+  id: z.string().uuid(),
+});
+
+// DELETE /api/tool-definitions -- delete a user-owned tool
+export const DELETE = h.mutation(async (data, userId) => {
+  await db
+    .delete(toolDefinitions)
+    .where(and(eq(toolDefinitions.id, data.id), eq(toolDefinitions.ownerId, userId)));
+  return { ok: true };
+}, { schema: deleteSchema });

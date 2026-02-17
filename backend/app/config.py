@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     roka_vault_key: str = ""
 
+    # OAuth provider credentials (for user "Connect" flows)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    slack_oauth_client_id: str = ""
+    slack_oauth_client_secret: str = ""
+
     class Config:
         env_file = ".env"
 

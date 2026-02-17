@@ -97,6 +97,15 @@ export const api = {
       fetch("/api/tool-definitions", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     toggle: (id: string, isActive: boolean) =>
       fetch("/api/tool-definitions", { method: "PATCH", headers: jsonHeaders, body: JSON.stringify({ id, isActive }) }).then(handleResponse),
+    delete: (id: string) =>
+      fetch("/api/tool-definitions", { method: "DELETE", headers: jsonHeaders, body: JSON.stringify({ id }) }).then(handleResponse),
+  },
+
+  // ── Executions ───────────────────────────────────────
+
+  executions: {
+    list: (limit = 50) =>
+      fetch(`/api/executions?limit=${limit}`).then(handleResponse),
   },
 
   // ── Conversations ────────────────────────────────────
