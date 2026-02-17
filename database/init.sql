@@ -215,6 +215,7 @@ CREATE TABLE agent_tasks (
     started_at    TIMESTAMPTZ,
     completed_at  TIMESTAMPTZ,
     heartbeat_at  TIMESTAMPTZ,                          -- updated periodically by worker
+    trace_log     JSONB NOT NULL DEFAULT '[]'::jsonb,   -- execution audit trail (tool calls/reasoning)
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -271,12 +272,7 @@ INSERT INTO app_settings (key, value, is_secret) VALUES
     ('llm_model', 'gpt-4o', false),
     ('llm_api_key', '', true),
     ('llm_api_base', '', false),
-    ('llm_configured', 'false', false),
-    ('smtp_host', '', false),
-    ('smtp_port', '587', false),
-    ('smtp_user', '', false),
-    ('smtp_password', '', true),
-    ('smtp_from_email', '', false);
+    ('llm_configured', 'false', false);
 
 -- ============================================================
 -- LISTEN/NOTIFY: wake the backend poller on new tasks
@@ -482,3 +478,9 @@ GRANT SELECT, INSERT, UPDATE ON checkpoints TO roka_backend;
 
 -- files: read for workflows (future: agent processes attachments)
 GRANT SELECT ON files TO roka_backend;
+
+-- ============================================================
+-- Baseline extension (agent platform schema)
+-- Keep init + migrations in sync during dev reset history.
+-- ============================================================
+\i /migrations/001_baseline.sql

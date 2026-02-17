@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Wrench,
-  Plus,
   X,
   Globe,
   Cpu,
@@ -249,7 +248,8 @@ export function ToolsSection() {
                     <ToolRow
                       key={tool.id}
                       tool={tool}
-                      onToggle={(checked) => toggleMutation.mutate({ id: tool.id, isActive: checked })}
+                      showBadge
+                      disableToggle
                     />
                   ))}
                 </div>
@@ -607,13 +607,15 @@ function ToolRow({
   tool,
   showBadge,
   showDelete,
+  disableToggle,
   onToggle,
   onDelete,
 }: {
   tool: DbToolDefinition;
   showBadge?: boolean;
   showDelete?: boolean;
-  onToggle: (checked: boolean) => void;
+  disableToggle?: boolean;
+  onToggle?: (checked: boolean) => void;
   onDelete?: () => void;
 }) {
   return (
@@ -631,7 +633,11 @@ function ToolRow({
             {tool.type}
           </Badge>
         )}
-        <Switch checked={tool.isActive} onCheckedChange={onToggle} />
+        <Switch
+          checked={tool.isActive}
+          onCheckedChange={onToggle}
+          disabled={disableToggle}
+        />
         {showDelete && onDelete && (
           <Button
             variant="ghost"

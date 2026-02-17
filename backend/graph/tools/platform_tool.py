@@ -24,7 +24,6 @@ Auth types:
 
 import importlib
 import logging
-import os
 from typing import Any, Optional
 
 from langchain_core.tools import BaseTool
@@ -75,12 +74,19 @@ async def build_platform_tool(
 
     # Build toolkit init kwargs
     init_kwargs: dict[str, Any] = {}
-    if token and auth_kwarg:
+    if token and auth_kwarg and auth_type != "env":
         init_kwargs[auth_kwarg] = _transform_token(token, auth_type)
 
-    # Handle env-based auth (set env var, toolkit reads it on import)
-    if auth_type == "env" and auth_kwarg and token:
-        os.environ[auth_kwarg] = token
+    # Tenant safety: never mutate process-global env with per-user credentials.
+    # env-based integrations must be configured as static server env vars.
+    if auth_type == "env" and token:
+        logger.warning(
+            "Platform tool %s uses env auth (%s). "
+            "Per-user env injection is disabled for security. "
+            "Configure server-level env var or use token/api_key auth.",
+            name, auth_kwarg or "<unset>",
+        )
+        return None
 
     try:
         toolkit_cls = _import_class(toolkit_path)
@@ -89,9 +95,6 @@ async def build_platform_tool(
     except Exception as e:
         logger.warning("Failed to instantiate toolkit %s: %s", toolkit_path, e)
         return None
-    finally:
-        if auth_type == "env" and auth_kwarg:
-            os.environ.pop(auth_kwarg, None)
 
     if not all_tools:
         logger.warning("Toolkit %s returned no tools", toolkit_path)

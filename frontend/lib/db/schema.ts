@@ -179,7 +179,6 @@ export const agentTasks = pgTable("agent_tasks", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
   traceLog: jsonb("trace_log").notNull().default([]),
-  s3TraceKey: text("s3_trace_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -208,7 +207,7 @@ export const appSettings = pgTable("app_settings", {
 
 // ── Zone E: Credential Vault ───────────────────────────
 
-export const credentialTypeEnum = pgEnum("credential_type", ["api_key", "oauth2", "smtp", "basic_auth", "custom"]);
+export const credentialTypeEnum = pgEnum("credential_type", ["api_key", "oauth2", "basic_auth", "custom"]);
 
 export const credentials = pgTable("credentials", {
   id: uuid("id").defaultRandom().primaryKey(),

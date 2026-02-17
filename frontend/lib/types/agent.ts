@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ── Credential Types ────────────────────────────────────
 
-export const credentialTypeSchema = z.enum(["api_key", "oauth2", "smtp", "basic_auth", "custom"]);
+export const credentialTypeSchema = z.enum(["api_key", "oauth2", "basic_auth", "custom"]);
 
 export const dbCredentialSchema = z.object({
   id: z.string().uuid(),

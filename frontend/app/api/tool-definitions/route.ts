@@ -49,9 +49,7 @@ const toggleSchema = z.object({
   isActive: z.boolean(),
 });
 
-// PATCH /api/tool-definitions -- toggle active state
-// System tools (ownerId IS NULL) can be toggled by any user.
-// User tools can only be toggled by the owner.
+// PATCH /api/tool-definitions -- toggle active state (owner tools only)
 export const PATCH = h.mutation(async (data, userId) => {
   const [tool] = await db
     .update(toolDefinitions)
@@ -59,7 +57,7 @@ export const PATCH = h.mutation(async (data, userId) => {
     .where(
       and(
         eq(toolDefinitions.id, data.id),
-        or(isNull(toolDefinitions.ownerId), eq(toolDefinitions.ownerId, userId)),
+        eq(toolDefinitions.ownerId, userId),
       ),
     )
     .returning();

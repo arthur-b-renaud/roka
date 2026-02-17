@@ -25,7 +25,7 @@ export const GET = h.GET(async (userId) => {
 const createSchema = z.object({
   name: z.string().min(1),
   service: z.string().min(1),
-  type: z.enum(["api_key", "oauth2", "smtp", "basic_auth", "custom"]),
+  type: z.enum(["api_key", "oauth2", "basic_auth", "custom"]),
   config: z.record(z.string()),
 });
 

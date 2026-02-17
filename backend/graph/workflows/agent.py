@@ -8,6 +8,7 @@ Agent definitions configure persona, model, and available tools.
 
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -25,6 +26,10 @@ from graph.tools.registry import load_tools_for_agent, wrap_tools_with_owner
 
 logger = logging.getLogger(__name__)
 
+_SENSITIVE_KEY_PATTERNS = (
+    "token", "secret", "password", "api_key", "authorization", "cookie", "key",
+)
+
 DEFAULT_SYSTEM_PROMPT = """You are Roka, an AI workspace assistant. You help users manage their knowledge base, triage incoming information, and take actions.
 
 ## Your capabilities
@@ -40,6 +45,35 @@ DEFAULT_SYSTEM_PROMPT = """You are Roka, an AI workspace assistant. You help use
 - Be concise and action-oriented. Summarize what you did after completing actions.
 - If you lack information to complete a request, say so clearly rather than guessing.
 """
+
+
+def _is_sensitive_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(p in lowered for p in _SENSITIVE_KEY_PATTERNS)
+
+
+def _redact_payload(value: Any) -> Any:
+    """Best-effort redaction for execution traces."""
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for k, v in value.items():
+            if _is_sensitive_key(str(k)):
+                redacted[k] = "***REDACTED***"
+            else:
+                redacted[k] = _redact_payload(v)
+        return redacted
+
+    if isinstance(value, list):
+        return [_redact_payload(v) for v in value]
+
+    if isinstance(value, str):
+        s = value[:4000]
+        # redact bearer-like tokens and common key formats in free text
+        s = re.sub(r"(?i)(bearer\\s+)[a-z0-9._\\-]+", r"\\1***REDACTED***", s)
+        s = re.sub(r"(?i)(sk-[a-z0-9]{8,})", "***REDACTED***", s)
+        return s
+
+    return value
 
 
 async def _build_model(
@@ -277,7 +311,7 @@ async def run_agent_workflow(
                     trace_log.append({
                         "step": step,
                         "type": "thinking",
-                        "content": str(msg.content)[:4000],
+                        "content": _redact_payload(str(msg.content)),
                         "ts": ts,
                     })
                 for tc in tool_calls:
@@ -286,7 +320,7 @@ async def run_agent_workflow(
                         "step": step,
                         "type": "tool_call",
                         "tool": tc.get("name", "unknown"),
-                        "input": tc.get("args", {}),
+                        "input": _redact_payload(tc.get("args", {})),
                         "ts": ts,
                     })
                 continue
@@ -298,7 +332,7 @@ async def run_agent_workflow(
                     "step": step,
                     "type": "tool_result",
                     "tool": getattr(msg, "name", "unknown"),
-                    "output": str(msg.content)[:4000] if hasattr(msg, "content") else "",
+                    "output": _redact_payload(str(msg.content)) if hasattr(msg, "content") else "",
                     "ts": ts,
                 })
                 continue
@@ -310,7 +344,7 @@ async def run_agent_workflow(
                 trace_log.append({
                     "step": step,
                     "type": "response",
-                    "content": str(msg.content)[:4000],
+                    "content": _redact_payload(str(msg.content)),
                     "ts": ts,
                 })
 

@@ -17,7 +17,6 @@ export const GET = h.GET(async (userId, req) => {
       output: agentTasks.output,
       error: agentTasks.error,
       traceLog: agentTasks.traceLog,
-      s3TraceKey: agentTasks.s3TraceKey,
       agentDefinitionId: agentTasks.agentDefinitionId,
       startedAt: agentTasks.startedAt,
       completedAt: agentTasks.completedAt,

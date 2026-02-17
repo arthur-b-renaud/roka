@@ -40,7 +40,6 @@ type Execution = {
   output: Record<string, unknown> | null;
   error: string | null;
   traceLog: TraceStep[];
-  s3TraceKey: string | null;
   agentDefinitionId: string | null;
   startedAt: string | null;
   completedAt: string | null;
