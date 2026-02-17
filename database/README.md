@@ -1,33 +1,40 @@
-# Database Layout (Dev Baseline)
+# Database Layout
 
-This project now uses a **reset baseline migration model** for development.
+Reset baseline migration model for development.
+
+## Structure
+
+```
+database/
+├── init.sql                 # Bootstraps fresh DB (extensions, roles, core schema)
+├── migrations/
+│   ├── 001_baseline.sql     # Active: credentials, tools, conversations, telemetry
+│   └── legacy/              # Archived incremental migrations (historical reference only)
+└── scripts/
+    └── fix-blocknote-content.sql  # One-off fix for corrupted editor content
+```
 
 ## Source of truth
 
-- `init.sql` bootstraps a fresh database.
-- `migrations/001_baseline.sql` applies the current application schema extensions.
-- `init.sql` includes `migrations/001_baseline.sql` during container bootstrap.
+- `init.sql` creates extensions (`uuid-ossp`, `vector`, `pg_trgm`), the `roka_backend` role, core tables, triggers, and search RPCs.
+- `migrations/001_baseline.sql` adds the credential vault, tool definitions, conversations, agent definitions, and telemetry tables.
+- Docker entrypoint runs `init.sql` on first boot. The baseline migration is applied via `make migrate`.
 
-## Legacy migrations
+## Migration policy
 
-- Older incremental migrations are archived in `migrations/legacy/`.
-- They are kept only for historical reference and are **not** part of the active migration chain.
+- Add new numbered SQL files in `migrations/` for schema changes.
+- Keep `init.sql` + active migrations consistent so fresh and existing environments match.
+- Legacy migrations in `migrations/legacy/` are kept for reference only.
 
-## Active migration policy
-
-- Add new migration files in `database/migrations/` only when introducing new schema changes.
-- Keep `init.sql` and active migrations consistent so fresh environments and existing environments match.
-
-## Dev reset flow
-
-From repo root:
+## Dev reset
 
 ```bash
-cd infra
-docker compose down -v
-docker compose up -d db
-cd ..
-make migrate
+make reset
 ```
 
-This ensures a clean database from the current baseline.
+Or manually:
+
+```bash
+cd infra && docker compose down -v && docker compose up -d db
+make migrate
+```

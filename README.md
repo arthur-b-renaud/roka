@@ -68,7 +68,7 @@ That's it. The setup wizard walks you through creating your account and configur
 - **BYO LLM** -- Configure from the UI: OpenAI, Ollama (100% local), OpenRouter, or any litellm-compatible provider
 - **Self-hosted auth** -- Auth.js v5 (MIT-licensed), credentials-based, no third-party dependency
 - **Full database ownership** -- PostgreSQL 16 with pgvector, pg_trgm, direct access via any SQL client
-- **Realtime** -- Native SSE via PostgreSQL LISTEN/NOTIFY (no external message broker)
+- **Realtime** -- Centrifugo WebSocket multiplexer, driven by PostgreSQL LISTEN/NOTIFY
 - **Backup/Restore** -- `pg_dump` scripts with optional S3 sync
 
 ## Architecture
@@ -98,8 +98,9 @@ Browser -> Next.js (Auth.js JWT) -> API Routes -> PostgreSQL 16
 | Agent | LangGraph (stateful workflows) |
 | LLM | litellm (direct calls, no middleware) |
 | Database | PostgreSQL 16 + pgvector + pg_trgm |
-| Realtime | SSE via PostgreSQL LISTEN/NOTIFY |
-| Infra | Docker Compose (3 services), Caddy (production HTTPS) |
+| Realtime | Centrifugo (WebSocket) + PostgreSQL LISTEN/NOTIFY |
+| Storage | SeaweedFS (S3-compatible object storage) |
+| Infra | Docker Compose (5 services), Caddy (production HTTPS) |
 
 ## Deploy to a VPS
 
@@ -129,14 +130,17 @@ The installer:
 roka/
 ├── frontend/              Next.js workspace UI
 │   ├── app/               App Router (setup, auth, workspace, API routes)
-│   ├── components/        Editor, grid, sidebar, UI primitives
-│   └── lib/               Auth, Drizzle ORM, React Query hooks, types
+│   ├── components/        Editor, grid, sidebar, chat, UI primitives
+│   └── lib/               Auth, Drizzle ORM, React Query hooks, S3, types
 ├── backend/               FastAPI agent service
-│   ├── app/               Routes, services, config
-│   └── graph/workflows/   LangGraph workflows (summarize, triage)
+│   ├── app/               Routes, services (vault, telemetry, task runner)
+│   └── graph/             LangGraph workflows + dynamic tool system
 ├── database/
-│   └── init.sql           Schema, triggers, search RPCs
-├── infra/                 Docker Compose, setup scripts, backups
+│   ├── init.sql           Schema, triggers, search RPCs
+│   └── migrations/        Active + legacy migrations
+├── infra/                 Docker Compose, Caddy, backup/restore scripts
+│   └── backup/            pg_dump backup & restore
+├── scripts/               E2E tests, smoke tests
 └── install.sh             One-liner VPS installer
 ```
 
@@ -158,8 +162,11 @@ For Ollama in Docker, set the API Base URL to `http://host.docker.internal:11434
 make up           # Start (auto-generates secrets on first run)
 make down         # Stop
 make logs         # Tail logs
-make prod         # Production build (Caddy, built images, no Studio)
+make prod         # Production build (Caddy, built images)
 make setup        # Regenerate secrets manually
+make migrate      # Run database migrations
+make health       # Check service status
+make reset        # Wipe database and restart fresh (dev only)
 make fix-content  # Fix corrupted BlockNote content (if text appears vertically)
 ```
 
@@ -190,10 +197,10 @@ Then refresh your browser. The script combines fragmented text blocks back into 
 - [ ] Live collaboration (Yjs / Hocuspocus)
 - [ ] Agent workflow visualizer (React Flow)
 - [ ] Semantic search with pgvector embeddings
-- [ ] Board / Kanban views
-- [ ] File uploads and attachments
 - [ ] Mobile responsive layout
 - [ ] Multi-user roles and permissions
+- [x] Board / Kanban views
+- [x] File uploads and attachments
 
 ## Contributing
 
