@@ -9,6 +9,26 @@ from langchain_core.tools import tool
 from app.db import get_pool
 
 
+def _build_paragraph_block(text: str) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "type": "paragraph",
+        "props": {
+            "textColor": "default",
+            "backgroundColor": "default",
+            "textAlignment": "left",
+        },
+        "content": [
+            {
+                "type": "text",
+                "text": text,
+                "styles": {},
+            }
+        ],
+        "children": [],
+    }
+
+
 @tool
 async def create_node(
     title: str,
@@ -97,3 +117,59 @@ async def update_node_properties(
     if result == "UPDATE 1":
         return f"Updated node {node_id} with {props}"
     return f"Node {node_id} not found or not updated."
+
+
+@tool
+async def append_text_to_page(
+    node_id: str,
+    text: str,
+    owner_id: Optional[str] = None,
+) -> str:
+    """Append text as a paragraph block to a page.
+
+    Args:
+        node_id: UUID of the target page node.
+        text: Text to append.
+        owner_id: UUID of the owner. Required (injected by agent context).
+    """
+    if not owner_id:
+        return "Error: owner_id is required to append page text."
+
+    trimmed = text.strip()
+    if not trimmed:
+        return "Error: text cannot be empty."
+
+    pool = get_pool()
+    row = await pool.fetchrow(
+        """
+        SELECT content, type::text
+        FROM nodes
+        WHERE id = $1 AND owner_id = $2
+        """,
+        uuid.UUID(node_id),
+        uuid.UUID(owner_id),
+    )
+    if not row:
+        return "Error: page not found or access denied."
+
+    if row["type"] != "page":
+        return f"Error: node {node_id} is type '{row['type']}', expected 'page'."
+
+    content = row["content"] if isinstance(row["content"], list) else []
+    updated_content = [*content, _build_paragraph_block(trimmed)]
+
+    result = await pool.execute(
+        """
+        UPDATE nodes
+        SET content = $2::jsonb,
+            updated_at = now()
+        WHERE id = $1 AND owner_id = $3
+        """,
+        uuid.UUID(node_id),
+        json.dumps(updated_content),
+        uuid.UUID(owner_id),
+    )
+
+    if result == "UPDATE 1":
+        return f"Appended text to page {node_id}"
+    return "Error: append failed."

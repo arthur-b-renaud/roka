@@ -9,7 +9,7 @@ from graph.tools.knowledge_base import (
     find_entities,
     get_communications,
 )
-from graph.tools.workspace import create_node, update_node_properties
+from graph.tools.workspace import create_node, update_node_properties, append_text_to_page
 
 ALL_TOOLS = [
     search_knowledge_base,
@@ -17,4 +17,5 @@ ALL_TOOLS = [
     get_communications,
     create_node,
     update_node_properties,
+    append_text_to_page,
 ]

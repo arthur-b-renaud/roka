@@ -23,6 +23,8 @@ from app.services.llm_settings import get_llm_config
 from app.services.checkpointer import get_checkpointer
 from app.services.telemetry import get_tracer, _TASK_ID_KEY, _OWNER_ID_KEY
 from graph.tools.registry import load_tools_for_agent, wrap_tools_with_owner
+from graph.tools.knowledge_base import search_knowledge_base
+from graph.tools.workspace import append_text_to_page
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,18 @@ DEFAULT_SYSTEM_PROMPT = """You are Roka, an AI workspace assistant. You help use
 - When creating tasks, set clear titles and relevant properties.
 - Be concise and action-oriented. Summarize what you did after completing actions.
 - If you lack information to complete a request, say so clearly rather than guessing.
+"""
+
+MINIMAL_SYSTEM_PROMPT = """You are a minimal workspace assistant focused on page actions.
+
+You can:
+- read workspace content with search_knowledge_base
+- append user-approved text to a page with append_text_to_page
+
+Rules:
+- Keep responses short and explicit.
+- Before writing, confirm target page intent from the user prompt.
+- If node_id is missing, ask the user to open a page and retry.
 """
 
 
@@ -213,15 +227,16 @@ async def run_agent_workflow(
 
         conversation_id = task_input.get("conversation_id")
         agent_def_id = task_input.get("agent_definition_id")
+        minimal_mode = bool(task_input.get("minimal_mode"))
         if not node_id:
             node_id = task_input.get("node_id") or None
 
-        # Load agent definition if specified
-        system_prompt = DEFAULT_SYSTEM_PROMPT
+        # Load agent definition if specified (disabled in minimal mode).
+        system_prompt = MINIMAL_SYSTEM_PROMPT if minimal_mode else DEFAULT_SYSTEM_PROMPT
         model_override = None
         tool_ids = None
 
-        if agent_def_id:
+        if (not minimal_mode) and agent_def_id:
             with tracer.start_as_current_span("agent.load_definition"):
                 agent_def = await _load_agent_definition(agent_def_id)
                 if agent_def:
@@ -239,10 +254,16 @@ async def run_agent_workflow(
         except ValueError as e:
             return {"error": str(e)}
 
-        # Load tools dynamically from DB
+        # Load tools (minimal profile uses fixed built-ins only).
         with tracer.start_as_current_span("agent.load_tools"):
-            tools = await load_tools_for_agent(owner_id, tool_ids)
-            tools = wrap_tools_with_owner(tools, owner_id)
+            if minimal_mode:
+                tools = wrap_tools_with_owner(
+                    [search_knowledge_base, append_text_to_page],
+                    owner_id,
+                )
+            else:
+                tools = await load_tools_for_agent(owner_id, tool_ids)
+                tools = wrap_tools_with_owner(tools, owner_id)
             span.set_attribute("tool_count", len(tools))
 
         # Build context

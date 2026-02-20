@@ -117,7 +117,15 @@ export const api = {
       fetch("/api/conversations", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     messages: (conversationId: string) =>
       fetch(`/api/conversations/${conversationId}/messages`).then(handleResponse),
-    sendMessage: (conversationId: string, data: { content: string; agentDefinitionId?: string | null }) =>
+    sendMessage: (
+      conversationId: string,
+      data: {
+        content: string;
+        agentDefinitionId?: string | null;
+        nodeId?: string | null;
+        minimalMode?: boolean;
+      }
+    ) =>
       fetch(`/api/conversations/${conversationId}/messages`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
   },
 

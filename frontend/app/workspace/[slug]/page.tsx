@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { PageHeader } from "@/components/editor/page-header";
 import { Breadcrumbs } from "@/components/editor/breadcrumbs";
 import { EditorErrorBoundary } from "@/components/editor/error-boundary";
+import { ChatPanel } from "@/components/chat/chat-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const PageEditor = dynamic(
@@ -73,6 +74,9 @@ export default function NodePage() {
           <>
             <PageHeader node={node} />
             <PageEditor key={node.id} node={node} />
+            <div className="mt-6">
+              <ChatPanel nodeId={node.id} minimalMode />
+            </div>
           </>
         )}
       </EditorErrorBoundary>

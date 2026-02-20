@@ -21,7 +21,12 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import type { DbConversation } from "@/lib/types/agent";
 
-export function ChatPanel() {
+interface ChatPanelProps {
+  nodeId?: string;
+  minimalMode?: boolean;
+}
+
+export function ChatPanel({ nodeId, minimalMode = false }: ChatPanelProps) {
   const { userId } = useCurrentUser();
 
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -54,8 +59,12 @@ export function ChatPanel() {
     if (!trimmed || !activeConversationId) return;
 
     setInput("");
-    await sendMessageMutation.mutateAsync({ content: trimmed });
-  }, [input, activeConversationId, sendMessageMutation]);
+    await sendMessageMutation.mutateAsync({
+      content: trimmed,
+      nodeId: nodeId ?? null,
+      minimalMode,
+    });
+  }, [input, activeConversationId, sendMessageMutation, nodeId, minimalMode]);
 
   const handleSelectConversation = (conv: DbConversation) => {
     setActiveConversationId(conv.id);

@@ -51,7 +51,12 @@ export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { content: string; agentDefinitionId?: string | null }) => {
+    mutationFn: async (data: {
+      content: string;
+      agentDefinitionId?: string | null;
+      nodeId?: string | null;
+      minimalMode?: boolean;
+    }) => {
       return api.conversations.sendMessage(conversationId, data);
     },
     // Optimistic: add user message immediately

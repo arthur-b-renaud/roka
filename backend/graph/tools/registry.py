@@ -27,7 +27,7 @@ def _load_builtin_map() -> None:
     if BUILTIN_TOOL_MAP:
         return
     from graph.tools.knowledge_base import search_knowledge_base, find_entities, get_communications
-    from graph.tools.workspace import create_node, update_node_properties
+    from graph.tools.workspace import create_node, update_node_properties, append_text_to_page
 
     BUILTIN_TOOL_MAP.update({
         "search_knowledge_base": search_knowledge_base,
@@ -35,6 +35,7 @@ def _load_builtin_map() -> None:
         "get_communications": get_communications,
         "create_node": create_node,
         "update_node_properties": update_node_properties,
+        "append_text_to_page": append_text_to_page,
     })
 
 
@@ -64,6 +65,11 @@ BUILTIN_SEED = [
         "name": "update_node_properties",
         "display_name": "Update Node Properties",
         "description": "Update metadata/properties on an existing node.",
+    },
+    {
+        "name": "append_text_to_page",
+        "display_name": "Append Text To Page",
+        "description": "Append plain text to a page as a new paragraph block.",
     },
 ]
 
@@ -156,7 +162,7 @@ def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
     Returns a new list with owner-aware wrappers.
     """
     from graph.tools.knowledge_base import search_knowledge_base
-    from graph.tools.workspace import create_node
+    from graph.tools.workspace import create_node, append_text_to_page
 
     wrapped = []
     for t in tools:
@@ -198,6 +204,23 @@ def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
                 coroutine=_search_with_owner,
                 name="search_knowledge_base",
                 description=search_knowledge_base.description,
+            ))
+        elif t.name == "append_text_to_page":
+            async def _append_with_owner(
+                node_id: str,
+                text: str,
+                _oid: str = owner_id,
+            ) -> str:
+                return await append_text_to_page.ainvoke({
+                    "node_id": node_id,
+                    "text": text,
+                    "owner_id": _oid,
+                })
+
+            wrapped.append(StructuredTool.from_function(
+                coroutine=_append_with_owner,
+                name="append_text_to_page",
+                description=append_text_to_page.description,
             ))
         else:
             wrapped.append(t)
