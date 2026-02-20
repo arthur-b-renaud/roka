@@ -33,7 +33,7 @@ async def _reclaim_stale_tasks() -> None:
     """Reset tasks stuck in 'running' with no recent heartbeat back to 'failed'."""
     try:
         pool = get_pool()
-        count = await pool.fetchval("""
+        rows = await pool.fetch("""
             UPDATE agent_tasks
             SET status = 'failed',
                 error = 'Worker timeout: task exceeded heartbeat deadline',
@@ -41,10 +41,10 @@ async def _reclaim_stale_tasks() -> None:
                 updated_at = now()
             WHERE status = 'running'
               AND heartbeat_at < now() - interval '%s minutes'
-            RETURNING count(*)
+            RETURNING id
         """ % STALE_TASK_TIMEOUT_MINUTES)
-        if count and count > 0:
-            logger.warning("Reclaimed %d stale running tasks", count)
+        if rows:
+            logger.warning("Reclaimed %d stale running tasks", len(rows))
     except Exception as e:
         logger.error("Stale task reclaim error: %s", e)
 
