@@ -170,4 +170,24 @@ export const api = {
     send: (content: string) =>
       fetch("/api/team-messages", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ content }) }).then(handleResponse),
   },
+
+  chatChannels: {
+    list: () =>
+      fetch("/api/chat-channels").then(handleResponse),
+    create: (name: string) =>
+      fetch("/api/chat-channels", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ name }) }).then(handleResponse),
+    createDirect: (otherUserId: string) =>
+      fetch("/api/chat-channels/direct", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ otherUserId }) }).then(handleResponse),
+    messages: (channelId: string, limit = 100, cursor?: string) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) params.set("cursor", cursor);
+      return fetch(`/api/chat-channels/${channelId}/messages?${params}`).then(handleResponse);
+    },
+    sendMessage: (channelId: string, content: string) =>
+      fetch(`/api/chat-channels/${channelId}/messages`, {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ content }),
+      }).then(handleResponse),
+  },
 };

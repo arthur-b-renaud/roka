@@ -4,10 +4,17 @@ import { eq, asc, and } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
 
+const conversationIdParamSchema = z.object({
+  id: z.string().uuid("Invalid conversation id"),
+});
+
 // GET /api/conversations/[id]/messages -- list messages for a conversation
-export const GET = h.GET(async (userId, req) => {
-  const url = new URL(req.url);
-  const conversationId = url.pathname.split("/conversations/")[1].split("/messages")[0];
+export const GET = h.GET(async (userId, _req, ctx) => {
+  const parsedParams = conversationIdParamSchema.safeParse(ctx.params);
+  if (!parsedParams.success) {
+    throw new Error(parsedParams.error.issues[0]?.message ?? "Invalid conversation id");
+  }
+  const conversationId = parsedParams.data.id;
 
   // Verify ownership
   const [conv] = await db
@@ -34,9 +41,12 @@ const sendMessageSchema = z.object({
 });
 
 // POST /api/conversations/[id]/messages -- send message (creates agent task)
-export const POST = h.mutation(async (data, userId, req) => {
-  const url = new URL(req.url);
-  const conversationId = url.pathname.split("/conversations/")[1].split("/messages")[0];
+export const POST = h.mutation(async (data, userId, _req, ctx) => {
+  const parsedParams = conversationIdParamSchema.safeParse(ctx.params);
+  if (!parsedParams.success) {
+    throw new Error(parsedParams.error.issues[0]?.message ?? "Invalid conversation id");
+  }
+  const conversationId = parsedParams.data.id;
 
   // Verify ownership
   const [conv] = await db

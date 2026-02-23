@@ -28,6 +28,14 @@ interface MutationOptions<T> {
 
 function errorResponse(e: unknown): NextResponse {
   console.error("API error:", e);
+  if (e instanceof Error) {
+    if (e.message.startsWith("Invalid ")) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
+    if (e.message.includes("not found")) {
+      return NextResponse.json({ error: e.message }, { status: 404 });
+    }
+  }
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
 

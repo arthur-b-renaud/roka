@@ -37,3 +37,26 @@ export const dbTeamMessageSchema = z.object({
 });
 
 export type DbTeamMessage = z.infer<typeof dbTeamMessageSchema>;
+
+export const dbChatChannelSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.enum(["channel", "direct"]),
+  name: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export type DbChatChannel = z.infer<typeof dbChatChannelSchema>;
+
+export const dbChatMessageSchema = z.object({
+  id: z.string().uuid(),
+  channelId: z.string().uuid(),
+  userId: z.string().uuid(),
+  content: z.string(),
+  createdAt: z.string(),
+  userName: z.string().nullable(),
+  userEmail: z.string(),
+  userImage: z.string().nullable(),
+});
+
+export type DbChatMessage = z.infer<typeof dbChatMessageSchema>;

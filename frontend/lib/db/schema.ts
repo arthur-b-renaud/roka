@@ -297,6 +297,7 @@ export const agentDefinitions = pgTable("agent_definitions", {
 // ── Zone J: Teams & Internal Chat ──────────────────────
 
 export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "member"]);
+export const chatChannelKindEnum = pgEnum("chat_channel_kind", ["channel", "direct"]);
 
 export const teams = pgTable("teams", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -322,6 +323,38 @@ export const teamMembers = pgTable(
 export const teamMessages = pgTable("team_messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const chatChannels = pgTable("chat_channels", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  kind: chatChannelKindEnum("kind").notNull().default("channel"),
+  name: text("name"),
+  dmKey: text("dm_key"),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const chatChannelMembers = pgTable(
+  "chat_channel_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    uqChannelUser: uniqueIndex("uq_chat_channel_members_channel_user").on(table.channelId, table.userId),
+  }),
+);
+
+export const chatChannelMessages = pgTable("chat_channel_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -424,6 +457,7 @@ export const toolDefinitionsRelations = relations(toolDefinitions, ({ one }) => 
 export const teamsRelations = relations(teams, ({ many }) => ({
   members: many(teamMembers),
   messages: many(teamMessages),
+  chatChannels: many(chatChannels),
 }));
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
@@ -434,4 +468,21 @@ export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
 export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
   team: one(teams, { fields: [teamMessages.teamId], references: [teams.id] }),
   user: one(users, { fields: [teamMessages.userId], references: [users.id] }),
+}));
+
+export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => ({
+  team: one(teams, { fields: [chatChannels.teamId], references: [teams.id] }),
+  members: many(chatChannelMembers),
+  messages: many(chatChannelMessages),
+  creator: one(users, { fields: [chatChannels.createdBy], references: [users.id] }),
+}));
+
+export const chatChannelMembersRelations = relations(chatChannelMembers, ({ one }) => ({
+  channel: one(chatChannels, { fields: [chatChannelMembers.channelId], references: [chatChannels.id] }),
+  user: one(users, { fields: [chatChannelMembers.userId], references: [users.id] }),
+}));
+
+export const chatChannelMessagesRelations = relations(chatChannelMessages, ({ one }) => ({
+  channel: one(chatChannels, { fields: [chatChannelMessages.channelId], references: [chatChannels.id] }),
+  user: one(users, { fields: [chatChannelMessages.userId], references: [users.id] }),
 }));

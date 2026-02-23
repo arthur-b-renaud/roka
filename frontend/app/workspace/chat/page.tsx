@@ -1,11 +1,11 @@
 "use client";
 
-import { TeamChatPanel } from "@/components/team-chat/team-chat-panel";
+import { WorkspaceChatPanel } from "@/components/team-chat/workspace-chat-panel";
 
 export default function ChatPage() {
   return (
     <div className="h-full">
-      <TeamChatPanel />
+      <WorkspaceChatPanel />
     </div>
   );
 }
