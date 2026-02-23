@@ -1,7 +1,6 @@
 """Tests for webhook route validation."""
 
 import secrets
-import pytest
 
 
 def test_timing_safe_compare():

@@ -11,7 +11,6 @@ Config schema (stored in tool_definitions.config JSONB):
 }
 """
 
-import json
 import logging
 import re
 from typing import Any, Optional

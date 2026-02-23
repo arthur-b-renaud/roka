@@ -5,7 +5,6 @@ Built-in tools map to Python functions. HTTP tools are generic API callers
 with credential injection. This is the bridge between DB config and LangGraph.
 """
 
-import json
 import logging
 import uuid
 from typing import Any

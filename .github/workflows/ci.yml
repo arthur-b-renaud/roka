@@ -48,11 +48,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate SQL syntax
         run: |
-          # Basic syntax check: ensure the file is parseable by psql
-          docker run --rm -e POSTGRES_PASSWORD=test -d --name pg_test postgres:15-alpine
-          sleep 5
-          docker exec pg_test psql -U postgres -c "SELECT 1;" > /dev/null
+          docker run --rm -e POSTGRES_PASSWORD=test -d --name pg_test pgvector/pgvector:pg16
+          for i in $(seq 1 30); do
+            docker exec pg_test pg_isready -U postgres > /dev/null 2>&1 && break
+            sleep 1
+          done
           docker cp database/init.sql pg_test:/tmp/init.sql
+          docker cp database/migrations pg_test:/migrations
           docker exec pg_test psql -U postgres -f /tmp/init.sql --set ON_ERROR_STOP=on
           docker stop pg_test
 

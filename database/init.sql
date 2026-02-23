@@ -486,3 +486,4 @@ GRANT SELECT ON files TO roka_backend;
 \i /migrations/001_baseline.sql
 \i /migrations/002_team_chat.sql
 \i /migrations/003_node_revisions.sql
+\i /migrations/004_chat_channels.sql

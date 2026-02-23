@@ -1,6 +1,5 @@
 """Tests for LLM settings service."""
 
-import pytest
 from app.services.llm_settings import LLMConfig
 
 

@@ -1,7 +1,5 @@
 """Tests for backend configuration."""
 
-import os
-import pytest
 from app.config import Settings
 
 
