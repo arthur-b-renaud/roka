@@ -208,13 +208,16 @@ export function TeamSection() {
       {/* Invite form */}
       {canManage && (
         <form onSubmit={handleInvite} className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Add existing user</Label>
+          <Label className="text-xs text-muted-foreground">Add team member</Label>
           <div className="flex gap-2">
             <Input
               type="email"
               value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="user@example.com"
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                if (inviteError) setInviteError(null);
+              }}
+              placeholder="Email of a registered user"
               className="max-w-sm"
               required
             />

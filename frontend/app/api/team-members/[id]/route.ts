@@ -20,7 +20,7 @@ export const PATCH = h.mutation(
     const membership = await ensureTeamMembership(userId);
 
     if (!isAdminOrOwner(membership.role)) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
+      throw new Error("Forbidden");
     }
 
     const [target] = await db
@@ -35,17 +35,13 @@ export const PATCH = h.mutation(
       .limit(1);
 
     if (!target) {
-      return Response.json({ error: "Member not found" }, { status: 404 });
+      throw new Error("Member not found");
     }
 
     if (isOwner(target.role)) {
-      return Response.json(
-        { error: "Cannot change owner role" },
-        { status: 403 },
-      );
+      throw new Error("Cannot change owner role");
     }
 
-    // Admin cannot promote to owner (only owner can, and owner isn't in the enum)
     const [updated] = await db
       .update(teamMembers)
       .set({ role: data.role })
@@ -62,7 +58,7 @@ export const DELETE = h.mutation(async (_data, userId, _req, ctx: RouteContext) 
   const membership = await ensureTeamMembership(userId);
 
   if (!isAdminOrOwner(membership.role)) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+    throw new Error("Forbidden");
   }
 
   const [target] = await db
@@ -77,14 +73,11 @@ export const DELETE = h.mutation(async (_data, userId, _req, ctx: RouteContext) 
     .limit(1);
 
   if (!target) {
-    return Response.json({ error: "Member not found" }, { status: 404 });
+    throw new Error("Member not found");
   }
 
   if (isOwner(target.role)) {
-    return Response.json(
-      { error: "Cannot remove the team owner" },
-      { status: 403 },
-    );
+    throw new Error("Cannot remove the team owner");
   }
 
   await db.delete(teamMembers).where(eq(teamMembers.id, targetId));

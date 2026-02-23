@@ -33,7 +33,7 @@ export const POST = h.mutation(
   async (data, userId) => {
     const membership = await ensureTeamMembership(userId);
     if (!isAdminOrOwner(membership.role)) {
-      return Response.json({ error: "Forbidden" }, { status: 403 });
+      throw new Error("Forbidden");
     }
 
     const [targetUser] = await db
@@ -43,10 +43,7 @@ export const POST = h.mutation(
       .limit(1);
 
     if (!targetUser) {
-      return Response.json(
-        { error: "No account found with that email" },
-        { status: 404 },
-      );
+      throw new Error("No account found with that email. The user must sign up first.");
     }
 
     const [existing] = await db
@@ -61,10 +58,7 @@ export const POST = h.mutation(
       .limit(1);
 
     if (existing) {
-      return Response.json(
-        { error: "User is already a team member" },
-        { status: 409 },
-      );
+      throw new Error("User is already a team member");
     }
 
     const [created] = await db

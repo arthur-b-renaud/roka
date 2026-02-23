@@ -29,7 +29,7 @@ interface MutationOptions<T> {
 function errorResponse(e: unknown): NextResponse {
   console.error("API error:", e);
   if (e instanceof Error) {
-    if (e.message === "Forbidden") {
+    if (e.message === "Forbidden" || e.message.startsWith("Cannot ")) {
       return NextResponse.json({ error: e.message }, { status: 403 });
     }
     if (e.message.startsWith("Invalid ")) {
@@ -37,6 +37,9 @@ function errorResponse(e: unknown): NextResponse {
     }
     if (e.message.includes("not found")) {
       return NextResponse.json({ error: e.message }, { status: 404 });
+    }
+    if (e.message.includes("already")) {
+      return NextResponse.json({ error: e.message }, { status: 409 });
     }
   }
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
