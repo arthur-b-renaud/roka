@@ -55,3 +55,17 @@ jobs:
           docker cp database/init.sql pg_test:/tmp/init.sql
           docker exec pg_test psql -U postgres -f /tmp/init.sql --set ON_ERROR_STOP=on
           docker stop pg_test
+
+  notify-deploy:
+    name: Trigger roka-cloud deploy
+    needs: [frontend, backend, sql-lint]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch to roka-cloud
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.ROKA_CLOUD_DEPLOY_TOKEN }}" \
+            https://api.github.com/repos/arthur-b-renaud/roka-cloud/dispatches \
+            -d '{"event_type":"roka-updated","client_payload":{"sha":"${{ github.sha }}"}}'
