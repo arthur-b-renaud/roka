@@ -89,8 +89,8 @@ class PostgresSpanExporter(SpanExporter):
                     duration_ms,
                     json.dumps(attrs, default=str),
                     json.dumps(events, default=str),
-                    uuid.UUID(task_id) if task_id else None,
-                    uuid.UUID(owner_id) if owner_id else None,
+                    uuid.UUID(str(task_id)) if task_id else None,
+                    uuid.UUID(str(owner_id)) if owner_id else None,
                 )
         except Exception as e:
             logger.warning("Failed to export telemetry spans: %s", e)

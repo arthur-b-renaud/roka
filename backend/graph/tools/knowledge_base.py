@@ -1,7 +1,7 @@
 """Knowledge base tools: search nodes, find entities, get communications."""
 
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.tools import tool
 
@@ -84,7 +84,7 @@ async def find_entities(
     pool = get_pool()
 
     conditions = []
-    args = []
+    args: list[Any] = []
     idx = 1
 
     if name:
@@ -141,7 +141,7 @@ async def get_communications(
     pool = get_pool()
 
     conditions = []
-    args = []
+    args: list[Any] = []
     idx = 1
 
     if entity_id:

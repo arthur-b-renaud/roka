@@ -134,5 +134,5 @@ async def run_summarize_workflow(
         "summary": "",
     }
 
-    result = await app.ainvoke(initial_state)
+    result = await app.ainvoke(initial_state)  # type: ignore[arg-type]
     return {"summary": result.get("summary", "")}

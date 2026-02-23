@@ -238,7 +238,7 @@ async def run_triage_workflow(
         "created_node_ids": [],
     }
 
-    result = await app.ainvoke(initial_state)
+    result = await app.ainvoke(initial_state)  # type: ignore[arg-type]
     return {
         "classification": result.get("classification", ""),
         "entities": result.get("extracted_entities", []),

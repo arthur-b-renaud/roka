@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
@@ -112,7 +112,7 @@ async def _build_model(
 
     return ChatOpenAI(
         model=model,
-        api_key=api_key,
+        api_key=api_key,  # type: ignore[arg-type]
         base_url=base_url,
         timeout=settings.llm_timeout_seconds,
     )
@@ -276,7 +276,7 @@ async def run_agent_workflow(
             full_system += f"\n\n{context}"
 
         # Build message history for multi-turn
-        messages = []
+        messages: list[BaseMessage] = []
         if conversation_id:
             with tracer.start_as_current_span("agent.load_history"):
                 history = await _load_conversation_messages(conversation_id)
@@ -305,7 +305,7 @@ async def run_agent_workflow(
         with tracer.start_as_current_span("agent.invoke"):
             result = await agent.ainvoke(
                 {"messages": messages},
-                config=config,
+                config=config,  # type: ignore[arg-type]
             )
 
         # Extract final response + build execution trace.
