@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/toast";
 import { WorkspaceTree } from "./workspace-tree";
+import { ChatNav } from "./chat-nav";
 import { useSidebar } from "./sidebar-context";
 import { cn } from "@/lib/utils";
 import {
@@ -38,11 +39,13 @@ import type { DbNode } from "@/lib/types/database";
 
 export function Sidebar() {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const { userId } = useCurrentUser();
   const { toast } = useToast();
   const { collapsed, toggle } = useSidebar();
   const createDatabase = useCreateDatabase();
+  const isOnChat = pathname?.startsWith("/workspace/chat") ?? false;
 
   const { data: pages = [] } = useQuery<DbNode[]>({
     queryKey: ["sidebar-pages", userId],
@@ -150,7 +153,10 @@ export function Sidebar() {
         </button>
         <button
           onClick={() => router.push("/workspace/chat")}
-          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60",
+            isOnChat && "bg-accent/60 font-medium"
+          )}
         >
           <MessageCircle className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
           Chat
@@ -164,37 +170,45 @@ export function Sidebar() {
         </button>
       </nav>
 
-      {/* Private section header with hover + */}
-      <div className="group flex items-center justify-between px-3 pt-4 pb-1">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Private
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-              aria-label="New page or database"
-            >
-              <Plus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={4}>
-            <DropdownMenuItem onClick={() => createPage.mutate()}>
-              <FileText className="mr-2 h-4 w-4" />
-              New Page
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => createDatabase.mutate()}>
-              <Database className="mr-2 h-4 w-4" />
-              New Database
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      {isOnChat ? (
+        <ScrollArea className="flex-1 pt-3">
+          <ChatNav />
+        </ScrollArea>
+      ) : (
+        <>
+          {/* Private section header with hover + */}
+          <div className="group flex items-center justify-between px-3 pt-4 pb-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Private
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                  aria-label="New page or database"
+                >
+                  <Plus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={4}>
+                <DropdownMenuItem onClick={() => createPage.mutate()}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  New Page
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => createDatabase.mutate()}>
+                  <Database className="mr-2 h-4 w-4" />
+                  New Database
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
-      {/* Page tree */}
-      <ScrollArea className="flex-1 px-2">
-        <WorkspaceTree pages={pages} />
-      </ScrollArea>
+          {/* Page tree */}
+          <ScrollArea className="flex-1 px-2">
+            <WorkspaceTree pages={pages} />
+          </ScrollArea>
+        </>
+      )}
 
       {/* Footer */}
       <div className="px-3 py-2">

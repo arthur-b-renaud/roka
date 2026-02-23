@@ -55,7 +55,10 @@ export function useCreateWorkspaceDirect() {
   });
 }
 
-export function useSendWorkspaceChatMessage(channelId: string | null) {
+export function useSendWorkspaceChatMessage(
+  channelId: string | null,
+  userId?: string | null,
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -71,7 +74,7 @@ export function useSendWorkspaceChatMessage(channelId: string | null) {
       const optimistic: DbChatMessage = {
         id: crypto.randomUUID(),
         channelId,
-        userId: "",
+        userId: userId ?? "",
         content,
         createdAt: new Date().toISOString(),
         userName: "You",
