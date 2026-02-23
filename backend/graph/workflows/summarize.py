@@ -14,7 +14,7 @@ import litellm
 from langgraph.graph import StateGraph, END
 
 from app.config import settings
-from app.db import get_pool
+from app.db import get_pool, with_actor
 from app.services.llm_settings import get_llm_config
 
 logger = logging.getLogger(__name__)
@@ -72,24 +72,22 @@ async def call_llm_summarize(state: SummarizeState) -> dict[str, Any]:
 
 async def write_summary(state: SummarizeState) -> dict[str, Any]:
     """Step 3: Write summary + audit log inside a single transaction."""
-    pool = get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute("""
-                UPDATE nodes
-                SET properties = properties || jsonb_build_object('ai_summary', $2::text),
-                    updated_at = now()
-                WHERE id = $1
-            """, uuid.UUID(state["node_id"]), state["summary"])
+    async with with_actor("agent", state["task_id"]) as conn:
+        await conn.execute("""
+            UPDATE nodes
+            SET properties = properties || jsonb_build_object('ai_summary', $2::text),
+                updated_at = now()
+            WHERE id = $1
+        """, uuid.UUID(state["node_id"]), state["summary"])
 
-            await conn.execute("""
-                INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
-                VALUES ($1, 'nodes', $2, 'UPDATE', $3::jsonb)
-            """,
-                uuid.UUID(state["task_id"]),
-                uuid.UUID(state["node_id"]),
-                json.dumps({"ai_summary": state["summary"]}),
-            )
+        await conn.execute("""
+            INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
+            VALUES ($1, 'nodes', $2, 'UPDATE', $3::jsonb)
+        """,
+            uuid.UUID(state["task_id"]),
+            uuid.UUID(state["node_id"]),
+            json.dumps({"ai_summary": state["summary"]}),
+        )
 
     return {}
 

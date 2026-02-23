@@ -484,3 +484,5 @@ GRANT SELECT ON files TO roka_backend;
 -- Keep init + migrations in sync during dev reset history.
 -- ============================================================
 \i /migrations/001_baseline.sql
+\i /migrations/002_team_chat.sql
+\i /migrations/003_node_revisions.sql

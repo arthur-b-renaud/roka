@@ -156,13 +156,17 @@ async def load_tools_for_agent(
     return tools
 
 
-def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
+def wrap_tools_with_owner(
+    tools: list[Any],
+    owner_id: str,
+    task_id: str | None = None,
+) -> list[Any]:
     """
-    Wrap tools that need owner_id injection (search_knowledge_base, create_node).
-    Returns a new list with owner-aware wrappers.
+    Wrap tools that need owner_id / task_id injection.
+    Returns a new list with context-aware wrappers.
     """
     from graph.tools.knowledge_base import search_knowledge_base
-    from graph.tools.workspace import create_node, append_text_to_page
+    from graph.tools.workspace import create_node, update_node_properties, append_text_to_page
 
     wrapped = []
     for t in tools:
@@ -173,6 +177,7 @@ def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
                 parent_id: str | None = None,
                 properties: str | None = None,
                 _oid: str = owner_id,
+                _tid: str | None = task_id,
             ) -> str:
                 return await create_node.ainvoke({
                     "title": title,
@@ -180,12 +185,31 @@ def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
                     "parent_id": parent_id or "",
                     "properties": properties or "{}",
                     "owner_id": _oid,
+                    "task_id": _tid or "",
                 })
 
             wrapped.append(StructuredTool.from_function(
                 coroutine=_create_with_owner,
                 name="create_node",
                 description=create_node.description,
+            ))
+
+        elif t.name == "update_node_properties":
+            async def _update_with_task(
+                node_id: str,
+                properties: str,
+                _tid: str | None = task_id,
+            ) -> str:
+                return await update_node_properties.ainvoke({
+                    "node_id": node_id,
+                    "properties": properties,
+                    "task_id": _tid or "",
+                })
+
+            wrapped.append(StructuredTool.from_function(
+                coroutine=_update_with_task,
+                name="update_node_properties",
+                description=update_node_properties.description,
             ))
 
         elif t.name == "search_knowledge_base":
@@ -205,16 +229,19 @@ def wrap_tools_with_owner(tools: list[Any], owner_id: str) -> list[Any]:
                 name="search_knowledge_base",
                 description=search_knowledge_base.description,
             ))
+
         elif t.name == "append_text_to_page":
             async def _append_with_owner(
                 node_id: str,
                 text: str,
                 _oid: str = owner_id,
+                _tid: str | None = task_id,
             ) -> str:
                 return await append_text_to_page.ainvoke({
                     "node_id": node_id,
                     "text": text,
                     "owner_id": _oid,
+                    "task_id": _tid or "",
                 })
 
             wrapped.append(StructuredTool.from_function(

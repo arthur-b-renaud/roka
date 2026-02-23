@@ -14,7 +14,7 @@ import litellm
 from langgraph.graph import StateGraph, END
 
 from app.config import settings
-from app.db import get_pool
+from app.db import get_pool, with_actor
 from app.services.llm_settings import get_llm_config
 
 logger = logging.getLogger(__name__)
@@ -125,70 +125,68 @@ async def extract_entities_and_dates(state: TriageState) -> dict[str, Any]:
 
 async def create_linked_nodes(state: TriageState) -> dict[str, Any]:
     """Create child nodes based on classification and extracted data, all in one transaction."""
-    pool = get_pool()
     owner_id = uuid.UUID(state["owner_id"])
     parent_id = uuid.UUID(state["node_id"])
-    task_id = uuid.UUID(state["task_id"])
+    task_id_uuid = uuid.UUID(state["task_id"])
     created_ids: list[str] = []
 
     classification = state.get("classification", "note")
 
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            # If classified as task, create a task node
-            if classification == "task":
-                row = await conn.fetchrow("""
-                    INSERT INTO nodes (owner_id, parent_id, type, title, properties)
-                    VALUES ($1, $2, 'page', 'Extracted Task', $3::jsonb)
-                    RETURNING id
-                """, owner_id, parent_id, json.dumps({
-                    "source": "triage",
-                    "classification": classification,
-                    "dates": state.get("extracted_dates", []),
-                }))
-                if row:
-                    created_ids.append(str(row["id"]))
-
-            # Create entity references as linked nodes
-            for entity in state.get("extracted_entities", []):
-                name = entity.get("name", "Unknown")
-                row = await conn.fetchrow("""
-                    INSERT INTO nodes (owner_id, parent_id, type, title, properties)
-                    VALUES ($1, $2, 'page', $3, $4::jsonb)
-                    RETURNING id
-                """, owner_id, parent_id, f"Reference: {name}", json.dumps({
-                    "source": "triage",
-                    "entity_name": name,
-                    "entity_type": entity.get("type", "person"),
-                }))
-                if row:
-                    created_ids.append(str(row["id"]))
-
-                    # Create edge linking source to reference
-                    await conn.execute("""
-                        INSERT INTO edges (source_id, target_id, type)
-                        VALUES ($1, $2, 'MENTIONS')
-                        ON CONFLICT DO NOTHING
-                    """, parent_id, row["id"])
-
-            # Audit log
-            for nid in created_ids:
-                await conn.execute("""
-                    INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
-                    VALUES ($1, 'nodes', $2, 'INSERT', '{"source": "triage"}'::jsonb)
-                """, task_id, uuid.UUID(nid))
-
-            # Update original node with triage results
-            await conn.execute("""
-                UPDATE nodes
-                SET properties = properties || $2::jsonb,
-                    updated_at = now()
-                WHERE id = $1
-            """, parent_id, json.dumps({
-                "ai_classification": classification,
-                "ai_entities": state.get("extracted_entities", []),
-                "ai_dates": state.get("extracted_dates", []),
+    async with with_actor("agent", state["task_id"]) as conn:
+        # If classified as task, create a task node
+        if classification == "task":
+            row = await conn.fetchrow("""
+                INSERT INTO nodes (owner_id, parent_id, type, title, properties)
+                VALUES ($1, $2, 'page', 'Extracted Task', $3::jsonb)
+                RETURNING id
+            """, owner_id, parent_id, json.dumps({
+                "source": "triage",
+                "classification": classification,
+                "dates": state.get("extracted_dates", []),
             }))
+            if row:
+                created_ids.append(str(row["id"]))
+
+        # Create entity references as linked nodes
+        for entity in state.get("extracted_entities", []):
+            name = entity.get("name", "Unknown")
+            row = await conn.fetchrow("""
+                INSERT INTO nodes (owner_id, parent_id, type, title, properties)
+                VALUES ($1, $2, 'page', $3, $4::jsonb)
+                RETURNING id
+            """, owner_id, parent_id, f"Reference: {name}", json.dumps({
+                "source": "triage",
+                "entity_name": name,
+                "entity_type": entity.get("type", "person"),
+            }))
+            if row:
+                created_ids.append(str(row["id"]))
+
+                # Create edge linking source to reference
+                await conn.execute("""
+                    INSERT INTO edges (source_id, target_id, type)
+                    VALUES ($1, $2, 'MENTIONS')
+                    ON CONFLICT DO NOTHING
+                """, parent_id, row["id"])
+
+        # Audit log
+        for nid in created_ids:
+            await conn.execute("""
+                INSERT INTO writes (task_id, table_name, row_id, operation, new_data)
+                VALUES ($1, 'nodes', $2, 'INSERT', '{"source": "triage"}'::jsonb)
+            """, task_id_uuid, uuid.UUID(nid))
+
+        # Update original node with triage results
+        await conn.execute("""
+            UPDATE nodes
+            SET properties = properties || $2::jsonb,
+                updated_at = now()
+            WHERE id = $1
+        """, parent_id, json.dumps({
+            "ai_classification": classification,
+            "ai_entities": state.get("extracted_entities", []),
+            "ai_dates": state.get("extracted_dates", []),
+        }))
 
     return {"created_node_ids": created_ids}
 

@@ -260,10 +260,11 @@ async def run_agent_workflow(
                 tools = wrap_tools_with_owner(
                     [search_knowledge_base, append_text_to_page],
                     owner_id,
+                    task_id,
                 )
             else:
                 tools = await load_tools_for_agent(owner_id, tool_ids)
-                tools = wrap_tools_with_owner(tools, owner_id)
+                tools = wrap_tools_with_owner(tools, owner_id, task_id)
             span.set_attribute("tool_count", len(tools))
 
         # Build context

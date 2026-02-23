@@ -196,6 +196,19 @@ export const writes = pgTable("writes", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const nodeRevisions = pgTable("node_revisions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nodeId: uuid("node_id").notNull().references(() => nodes.id, { onDelete: "cascade" }),
+  operation: text("operation").notNull(),
+  oldData: jsonb("old_data"),
+  newData: jsonb("new_data"),
+  changedFields: text("changed_fields").array(),
+  actorType: text("actor_type").notNull().default("system"),
+  actorId: text("actor_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ── Zone D: App Settings ───────────────────────────────
 
 export const appSettings = pgTable("app_settings", {
@@ -355,6 +368,11 @@ export const nodesRelations = relations(nodes, ({ one, many }) => ({
   databaseDefinition: one(databaseDefinitions, { fields: [nodes.id], references: [databaseDefinitions.nodeId] }),
   views: many(databaseViews),
   files: many(files),
+  revisions: many(nodeRevisions),
+}));
+
+export const nodeRevisionsRelations = relations(nodeRevisions, ({ one }) => ({
+  node: one(nodes, { fields: [nodeRevisions.nodeId], references: [nodes.id] }),
 }));
 
 export const filesRelations = relations(files, ({ one }) => ({

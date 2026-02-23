@@ -3,6 +3,9 @@
 Initialized once at startup (via lifespan) to avoid race conditions.
 """
 
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 import asyncpg
 from app.config import settings
 
@@ -31,3 +34,24 @@ def get_pool() -> asyncpg.Pool:
     if _pool is None:
         raise RuntimeError("DB pool not initialized -- was init_pool() called at startup?")
     return _pool
+
+
+@asynccontextmanager
+async def with_actor(
+    actor_type: str, actor_id: str
+) -> AsyncIterator[asyncpg.Connection]:
+    """Acquire a connection with actor attribution set for node_revisions trigger.
+
+    SET LOCAL is transaction-scoped, so values never leak to other callers
+    sharing the pool.
+    """
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "SELECT set_config('roka.actor_type', $1, true)", actor_type
+            )
+            await conn.execute(
+                "SELECT set_config('roka.actor_id', $1, true)", actor_id
+            )
+            yield conn

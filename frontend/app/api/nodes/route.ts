@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { nodes } from "@/lib/db/schema";
+import { withActor } from "@/lib/db/with-actor";
 import { eq, and, isNull, inArray, desc, asc } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
@@ -49,17 +50,19 @@ const createNodeSchema = z.object({
 
 // POST /api/nodes
 export const POST = h.mutation(async (data, userId) => {
-  const [node] = await db
-    .insert(nodes)
-    .values({
-      ownerId: userId,
-      parentId: data.parentId ?? null,
-      type: data.type,
-      title: data.title,
-      icon: data.icon ?? null,
-      content: data.content,
-      properties: data.properties,
-    })
-    .returning();
+  const [node] = await withActor("human", userId, (tx) =>
+    tx
+      .insert(nodes)
+      .values({
+        ownerId: userId,
+        parentId: data.parentId ?? null,
+        type: data.type,
+        title: data.title,
+        icon: data.icon ?? null,
+        content: data.content,
+        properties: data.properties,
+      })
+      .returning(),
+  );
   return node;
 }, { schema: createNodeSchema });
