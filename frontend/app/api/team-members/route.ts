@@ -43,7 +43,7 @@ export const POST = h.mutation(
       .limit(1);
 
     if (!targetUser) {
-      throw new Error("No account found with that email. The user must sign up first.");
+      throw new Error("User not found — they must sign up first");
     }
 
     const [existing] = await db
