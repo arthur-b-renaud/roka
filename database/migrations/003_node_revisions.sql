@@ -39,15 +39,15 @@ BEGIN
 
     IF TG_OP = 'UPDATE' THEN
         -- Compute changed fields (exclude derived/auto columns)
-        IF OLD.title         IS DISTINCT FROM NEW.title         THEN v_changed := v_changed || 'title';      END IF;
-        IF OLD.content       IS DISTINCT FROM NEW.content       THEN v_changed := v_changed || 'content';    END IF;
-        IF OLD.properties    IS DISTINCT FROM NEW.properties    THEN v_changed := v_changed || 'properties'; END IF;
-        IF OLD.icon          IS DISTINCT FROM NEW.icon          THEN v_changed := v_changed || 'icon';       END IF;
-        IF OLD.cover_url     IS DISTINCT FROM NEW.cover_url     THEN v_changed := v_changed || 'cover_url';  END IF;
-        IF OLD.parent_id     IS DISTINCT FROM NEW.parent_id     THEN v_changed := v_changed || 'parent_id';  END IF;
-        IF OLD.type          IS DISTINCT FROM NEW.type          THEN v_changed := v_changed || 'type';       END IF;
-        IF OLD.is_pinned     IS DISTINCT FROM NEW.is_pinned     THEN v_changed := v_changed || 'is_pinned';  END IF;
-        IF OLD.sort_order    IS DISTINCT FROM NEW.sort_order    THEN v_changed := v_changed || 'sort_order'; END IF;
+        IF OLD.title         IS DISTINCT FROM NEW.title         THEN v_changed := array_append(v_changed, 'title');      END IF;
+        IF OLD.content       IS DISTINCT FROM NEW.content       THEN v_changed := array_append(v_changed, 'content');    END IF;
+        IF OLD.properties    IS DISTINCT FROM NEW.properties    THEN v_changed := array_append(v_changed, 'properties'); END IF;
+        IF OLD.icon          IS DISTINCT FROM NEW.icon          THEN v_changed := array_append(v_changed, 'icon');       END IF;
+        IF OLD.cover_url     IS DISTINCT FROM NEW.cover_url     THEN v_changed := array_append(v_changed, 'cover_url');  END IF;
+        IF OLD.parent_id     IS DISTINCT FROM NEW.parent_id     THEN v_changed := array_append(v_changed, 'parent_id');  END IF;
+        IF OLD.type          IS DISTINCT FROM NEW.type          THEN v_changed := array_append(v_changed, 'type');       END IF;
+        IF OLD.is_pinned     IS DISTINCT FROM NEW.is_pinned     THEN v_changed := array_append(v_changed, 'is_pinned');  END IF;
+        IF OLD.sort_order    IS DISTINCT FROM NEW.sort_order    THEN v_changed := array_append(v_changed, 'sort_order'); END IF;
 
         -- Skip if nothing meaningful changed
         IF array_length(v_changed, 1) IS NULL THEN
