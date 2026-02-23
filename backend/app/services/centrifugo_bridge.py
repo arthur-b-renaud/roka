@@ -65,7 +65,8 @@ async def centrifugo_bridge() -> None:
                 conn = await pool.acquire()
                 await conn.add_listener("new_task", _on_notify)
                 await conn.add_listener("new_message", _on_notify)
-                logger.info("Centrifugo bridge listening (new_task, new_message)")
+                await conn.add_listener("team_chat", _on_notify)
+                logger.info("Centrifugo bridge listening (new_task, new_message, team_chat)")
                 backoff = BRIDGE_RECONNECT_BASE
 
                 # Keep connection alive until cancelled
@@ -80,6 +81,7 @@ async def centrifugo_bridge() -> None:
                     try:
                         await conn.remove_listener("new_task", _on_notify)
                         await conn.remove_listener("new_message", _on_notify)
+                        await conn.remove_listener("team_chat", _on_notify)
                     except Exception:
                         pass
                     await pool.release(conn)

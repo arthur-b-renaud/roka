@@ -141,4 +141,33 @@ export const api = {
     delete: (id: string) =>
       fetch("/api/agent-definitions", { method: "DELETE", headers: jsonHeaders, body: JSON.stringify({ id }) }).then(handleResponse),
   },
+
+  // ── Teams ───────────────────────────────────────────
+  teams: {
+    get: () =>
+      fetch("/api/teams").then(handleResponse),
+    update: (data: { name: string }) =>
+      fetch("/api/teams", { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
+  },
+
+  teamMembers: {
+    list: () =>
+      fetch("/api/team-members").then(handleResponse),
+    invite: (email: string) =>
+      fetch("/api/team-members", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ email }) }).then(handleResponse),
+    updateRole: (id: string, role: string) =>
+      fetch(`/api/team-members/${id}`, { method: "PATCH", headers: jsonHeaders, body: JSON.stringify({ role }) }).then(handleResponse),
+    remove: (id: string) =>
+      fetch(`/api/team-members/${id}`, { method: "DELETE" }).then(handleResponse),
+  },
+
+  teamMessages: {
+    list: (limit = 50, cursor?: string) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) params.set("cursor", cursor);
+      return fetch(`/api/team-messages?${params}`).then(handleResponse);
+    },
+    send: (content: string) =>
+      fetch("/api/team-messages", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ content }) }).then(handleResponse),
+  },
 };

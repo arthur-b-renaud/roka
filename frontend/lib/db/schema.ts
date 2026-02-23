@@ -281,6 +281,39 @@ export const agentDefinitions = pgTable("agent_definitions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// ── Zone J: Teams & Internal Chat ──────────────────────
+
+export const teamRoleEnum = pgEnum("team_role", ["owner", "admin", "member"]);
+
+export const teams = pgTable("teams", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull().default("My Workspace"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const teamMembers = pgTable(
+  "team_members",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    role: teamRoleEnum("role").notNull().default("member"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    teamUser: uniqueIndex("uq_team_members_team_user").on(table.teamId, table.userId),
+  }),
+);
+
+export const teamMessages = pgTable("team_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  content: text("content").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // ── Zone I: Telemetry ──────────────────────────────────
 
 export const telemetrySpans = pgTable("telemetry_spans", {
@@ -311,6 +344,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   credentials: many(credentials),
   conversations: many(conversations),
   agentDefinitions: many(agentDefinitions),
+  teamMemberships: many(teamMembers),
+  teamMessages: many(teamMessages),
 }));
 
 export const nodesRelations = relations(nodes, ({ one, many }) => ({
@@ -364,4 +399,21 @@ export const agentDefinitionsRelations = relations(agentDefinitions, ({ one }) =
 export const toolDefinitionsRelations = relations(toolDefinitions, ({ one }) => ({
   owner: one(users, { fields: [toolDefinitions.ownerId], references: [users.id] }),
   credential: one(credentials, { fields: [toolDefinitions.credentialId], references: [credentials.id] }),
+}));
+
+// ── Team Relations ─────────────────────────────────────
+
+export const teamsRelations = relations(teams, ({ many }) => ({
+  members: many(teamMembers),
+  messages: many(teamMessages),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, { fields: [teamMembers.teamId], references: [teams.id] }),
+  user: one(users, { fields: [teamMembers.userId], references: [users.id] }),
+}));
+
+export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
+  team: one(teams, { fields: [teamMessages.teamId], references: [teams.id] }),
+  user: one(users, { fields: [teamMessages.userId], references: [users.id] }),
 }));

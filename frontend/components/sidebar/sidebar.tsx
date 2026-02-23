@@ -32,6 +32,7 @@ import {
   Bot,
   Wrench,
   Activity,
+  MessageCircle,
 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
@@ -146,6 +147,13 @@ export function Sidebar() {
         >
           <Activity className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
           Executions
+        </button>
+        <button
+          onClick={() => router.push("/workspace/chat")}
+          className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
+        >
+          <MessageCircle className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Chat
         </button>
         <button
           onClick={() => router.push("/workspace/settings")}

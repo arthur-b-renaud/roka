@@ -40,6 +40,12 @@ export function useRealtime() {
     });
     msgSub.subscribe();
 
+    const teamChatSub = centrifuge.newSubscription("team_chat");
+    teamChatSub.on("publication", () => {
+      queryClient.invalidateQueries({ queryKey: ["team-messages"] });
+    });
+    teamChatSub.subscribe();
+
     centrifuge.connect();
 
     return () => {

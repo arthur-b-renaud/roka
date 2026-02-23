@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useAppSettings, useUpdateAppSettings } from "@/lib/hooks/use-app-settings";
 import { CredentialsSection } from "@/components/settings/credentials-section";
+import { TeamSection } from "@/components/settings/team-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,6 +102,11 @@ export default function SettingsPage() {
           Manage your workspace, credentials, and profile
         </p>
       </div>
+
+      <Separator />
+
+      {/* Team Management */}
+      <TeamSection />
 
       <Separator />
 
