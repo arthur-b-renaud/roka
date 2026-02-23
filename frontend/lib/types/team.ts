@@ -60,3 +60,14 @@ export const dbChatMessageSchema = z.object({
 });
 
 export type DbChatMessage = z.infer<typeof dbChatMessageSchema>;
+
+export const dbChatChannelMemberSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  name: z.string().nullable(),
+  email: z.string(),
+  image: z.string().nullable(),
+  role: teamRoleSchema,
+});
+
+export type DbChatChannelMember = z.infer<typeof dbChatChannelMemberSchema>;

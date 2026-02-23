@@ -189,5 +189,21 @@ export const api = {
         headers: jsonHeaders,
         body: JSON.stringify({ content }),
       }).then(handleResponse),
+    members: (channelId: string) =>
+      fetch(`/api/chat-channels/${channelId}/members`).then(handleResponse),
+    addMember: (channelId: string, userId: string) =>
+      fetch(`/api/chat-channels/${channelId}/members`, {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ userId }),
+      }).then(handleResponse),
+    removeMember: (channelId: string, userId: string) =>
+      fetch(`/api/chat-channels/${channelId}/members`, {
+        method: "DELETE",
+        headers: jsonHeaders,
+        body: JSON.stringify({ userId }),
+      }).then(handleResponse),
+    delete: (channelId: string) =>
+      fetch(`/api/chat-channels/${channelId}`, { method: "DELETE" }).then(handleResponse),
   },
 };

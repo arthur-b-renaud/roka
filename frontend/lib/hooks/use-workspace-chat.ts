@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
-import { dbChatChannelSchema, dbChatMessageSchema, type DbChatChannel, type DbChatMessage } from "@/lib/types/team";
+import {
+  dbChatChannelMemberSchema,
+  dbChatChannelSchema,
+  dbChatMessageSchema,
+  type DbChatChannel,
+  type DbChatChannelMember,
+  type DbChatMessage,
+} from "@/lib/types/team";
 
 const channelsListSchema = z.object({
   channels: z.array(dbChatChannelSchema),
@@ -9,6 +16,7 @@ const channelsListSchema = z.object({
 });
 
 const chatMessagesSchema = z.array(dbChatMessageSchema);
+const chatChannelMembersSchema = z.array(dbChatChannelMemberSchema);
 
 export function useWorkspaceChatChannels() {
   return useQuery<{ channels: DbChatChannel[]; directs: DbChatChannel[] }>({
@@ -32,6 +40,19 @@ export function useWorkspaceChatMessages(channelId: string | null) {
     enabled: !!channelId,
     staleTime: 5_000,
     refetchInterval: 10_000,
+  });
+}
+
+export function useWorkspaceChatChannelMembers(channelId: string | null) {
+  return useQuery<DbChatChannelMember[]>({
+    queryKey: ["workspace-chat-channel-members", channelId],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const data = await api.chatChannels.members(channelId);
+      return chatChannelMembersSchema.parse(data);
+    },
+    enabled: !!channelId,
+    staleTime: 10_000,
   });
 }
 
@@ -97,6 +118,52 @@ export function useSendWorkspaceChatMessage(
     onSettled: () => {
       if (channelId) {
         queryClient.invalidateQueries({ queryKey: ["workspace-chat-messages", channelId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["workspace-chat-channels"] });
+    },
+  });
+}
+
+export function useAddWorkspaceChatChannelMember(channelId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => {
+      if (!channelId) throw new Error("No active channel selected");
+      return api.chatChannels.addMember(channelId, userId);
+    },
+    onSuccess: () => {
+      if (channelId) {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-chat-channel-members", channelId],
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["workspace-chat-channels"] });
+    },
+  });
+}
+
+export function useDeleteWorkspaceChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => api.chatChannels.delete(channelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workspace-chat-channels"] });
+    },
+  });
+}
+
+export function useRemoveWorkspaceChatChannelMember(channelId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => {
+      if (!channelId) throw new Error("No active channel selected");
+      return api.chatChannels.removeMember(channelId, userId);
+    },
+    onSuccess: () => {
+      if (channelId) {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-chat-channel-members", channelId],
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["workspace-chat-channels"] });
     },

@@ -29,6 +29,9 @@ interface MutationOptions<T> {
 function errorResponse(e: unknown): NextResponse {
   console.error("API error:", e);
   if (e instanceof Error) {
+    if (e.message === "Forbidden") {
+      return NextResponse.json({ error: e.message }, { status: 403 });
+    }
     if (e.message.startsWith("Invalid ")) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }

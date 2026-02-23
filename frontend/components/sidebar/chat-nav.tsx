@@ -2,12 +2,19 @@
 
 import { useCallback, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Hash, Loader2, Plus, Users } from "lucide-react";
+import { Hash, Loader2, MoreHorizontal, Plus, Trash2, Users } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useTeamMembers } from "@/lib/hooks/use-team";
 import {
   useCreateWorkspaceChannel,
   useCreateWorkspaceDirect,
+  useDeleteWorkspaceChannel,
   useWorkspaceChatChannels,
 } from "@/lib/hooks/use-workspace-chat";
 
@@ -22,9 +29,9 @@ export function ChatNav() {
   const directs = data?.directs ?? [];
 
   const [newChannelName, setNewChannelName] = useState("");
-  const [directUserId, setDirectUserId] = useState("");
   const createChannel = useCreateWorkspaceChannel();
   const createDirect = useCreateWorkspaceDirect();
+  const deleteChannel = useDeleteWorkspaceChannel();
 
   const dmOptions = teamMembers.filter((m) => m.userId !== userId);
 
@@ -45,11 +52,23 @@ export function ChatNav() {
       createDirect.mutate(targetUserId, {
         onSuccess: (channel) => {
           if (channel?.id) router.push(`/workspace/chat/${channel.id}`);
-          setDirectUserId("");
         },
       });
     },
     [createDirect, router],
+  );
+
+  const handleDeleteChannel = useCallback(
+    (channelId: string) => {
+      deleteChannel.mutate(channelId, {
+        onSuccess: () => {
+          if (activeChannelId === channelId) {
+            router.push("/workspace/chat");
+          }
+        },
+      });
+    },
+    [deleteChannel, activeChannelId, router],
   );
 
   if (isLoading) {
@@ -71,18 +90,42 @@ export function ChatNav() {
         </div>
         <div className="space-y-0.5 px-2">
           {channels.map((c) => (
-            <button
+            <div
               key={c.id}
-              onClick={() => router.push(`/workspace/chat/${c.id}`)}
-              className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[13px] transition-colors duration-150 ${
+              className={`group/ch flex items-center rounded-md text-[13px] transition-colors duration-150 ${
                 activeChannelId === c.id
                   ? "bg-accent/60 font-medium text-[hsl(var(--sidebar-foreground))]"
                   : "text-[hsl(var(--sidebar-foreground))] hover:bg-accent/60"
               }`}
             >
-              <Hash className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
-              <span className="truncate">{c.name}</span>
-            </button>
+              <button
+                onClick={() => router.push(`/workspace/chat/${c.id}`)}
+                className="flex min-w-0 flex-1 items-center gap-2 px-1.5 py-1 text-left"
+              >
+                <Hash className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+                <span className="truncate">{c.name}</span>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded opacity-0 transition-opacity group-hover/ch:opacity-100 data-[state=open]:opacity-100 hover:bg-accent"
+                    aria-label="Channel options"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5 text-[hsl(var(--sidebar-muted))]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={4}>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => handleDeleteChannel(c.id)}
+                    disabled={deleteChannel.isPending}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Delete channel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ))}
         </div>
         <div className="mt-1.5 flex gap-1 px-2">
@@ -114,15 +157,45 @@ export function ChatNav() {
 
       {/* Direct messages */}
       <div>
-        <div className="flex items-center justify-between px-3 pb-1">
+        <div className="group flex items-center justify-between px-3 pb-1">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             Direct messages
           </span>
+          {dmOptions.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex h-4 w-4 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
+                  aria-label="New direct message"
+                  disabled={createDirect.isPending}
+                >
+                  {createDirect.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin text-[hsl(var(--sidebar-muted))]" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={4}>
+                {dmOptions.map((m) => (
+                  <DropdownMenuItem
+                    key={m.userId}
+                    onClick={() => handleCreateDirect(m.userId)}
+                  >
+                    <Users className="mr-2 h-3.5 w-3.5" />
+                    {m.name || m.email}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         <div className="space-y-0.5 px-2">
           {directs.length === 0 && (
             <p className="px-1.5 py-1 text-[12px] text-[hsl(var(--sidebar-muted))]">
-              No conversations yet
+              {dmOptions.length > 0
+                ? "Hover the header and click + to start"
+                : "Invite teammates in Settings first"}
             </p>
           )}
           {directs.map((d) => (
@@ -140,29 +213,6 @@ export function ChatNav() {
             </button>
           ))}
         </div>
-        {dmOptions.length > 0 && (
-          <div className="mt-1.5 px-2">
-            <select
-              className="h-6 w-full rounded border-0 bg-accent/40 px-1.5 text-[12px] text-[hsl(var(--sidebar-foreground))] focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-40"
-              value={directUserId}
-              disabled={createDirect.isPending}
-              onChange={(e) => {
-                const val = e.target.value;
-                setDirectUserId(val);
-                if (val) handleCreateDirect(val);
-              }}
-            >
-              <option value="">
-                {createDirect.isPending ? "Opening..." : "New message..."}
-              </option>
-              {dmOptions.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.name || m.email}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
     </div>
   );
