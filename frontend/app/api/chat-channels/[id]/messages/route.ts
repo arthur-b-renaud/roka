@@ -2,7 +2,13 @@ import * as h from "@/lib/api-handler";
 import { and, desc, eq, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { chatChannelMessages, users } from "@/lib/db/schema";
+import {
+  agentDefinitions,
+  agentTasks,
+  chatChannelAgents,
+  chatChannelMessages,
+  users,
+} from "@/lib/db/schema";
 import { assertChannelMembership } from "@/lib/chat";
 
 const channelIdParamSchema = z.object({
@@ -26,20 +32,22 @@ export const GET = h.GET(async (userId, req, ctx) => {
     conditions.push(lt(chatChannelMessages.createdAt, new Date(cursor)));
   }
 
-  // Fetch latest N messages (DESC) then reverse to chronological for display.
   const rows = await db
     .select({
       id: chatChannelMessages.id,
       channelId: chatChannelMessages.channelId,
       userId: chatChannelMessages.userId,
       content: chatChannelMessages.content,
+      agentDefinitionId: chatChannelMessages.agentDefinitionId,
       createdAt: chatChannelMessages.createdAt,
       userName: users.name,
       userEmail: users.email,
       userImage: users.image,
+      agentName: agentDefinitions.name,
     })
     .from(chatChannelMessages)
     .innerJoin(users, eq(users.id, chatChannelMessages.userId))
+    .leftJoin(agentDefinitions, eq(agentDefinitions.id, chatChannelMessages.agentDefinitionId))
     .where(and(...conditions))
     .orderBy(desc(chatChannelMessages.createdAt))
     .limit(limit);
@@ -67,6 +75,33 @@ export const POST = h.mutation(async (data, userId, _req, ctx) => {
       content: data.content,
     })
     .returning();
+
+  // Trigger agents linked to this channel
+  const agents = await db
+    .select({
+      agentDefinitionId: chatChannelAgents.agentDefinitionId,
+      ownerId: agentDefinitions.ownerId,
+    })
+    .from(chatChannelAgents)
+    .innerJoin(agentDefinitions, and(
+      eq(agentDefinitions.id, chatChannelAgents.agentDefinitionId),
+      eq(agentDefinitions.isActive, true),
+    ))
+    .where(eq(chatChannelAgents.channelId, channelId));
+
+  for (const agent of agents) {
+    await db.insert(agentTasks).values({
+      ownerId: agent.ownerId,
+      workflow: "agent",
+      status: "pending",
+      agentDefinitionId: agent.agentDefinitionId,
+      input: {
+        prompt: data.content,
+        channel_id: channelId,
+        triggering_user_id: userId,
+      },
+    });
+  }
 
   return msg;
 }, { schema: sendSchema });

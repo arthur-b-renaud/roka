@@ -26,6 +26,13 @@ export const api = {
       fetch(`/api/nodes/${id}`, { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     delete: (id: string) =>
       fetch(`/api/nodes/${id}`, { method: "DELETE" }).then(handleResponse),
+    history: (id: string, opts: { limit?: number; offset?: number; fields?: "meta" | "full" } = {}) => {
+      const p = new URLSearchParams();
+      if (opts.limit) p.set("limit", String(opts.limit));
+      if (opts.offset) p.set("offset", String(opts.offset));
+      p.set("fields", opts.fields ?? "meta");
+      return fetch(`/api/nodes/${id}/history?${p}`).then(handleResponse);
+    },
   },
 
   databaseDefinitions: {
@@ -205,5 +212,19 @@ export const api = {
       }).then(handleResponse),
     delete: (channelId: string) =>
       fetch(`/api/chat-channels/${channelId}`, { method: "DELETE" }).then(handleResponse),
+    agents: (channelId: string) =>
+      fetch(`/api/chat-channels/${channelId}/agents`).then(handleResponse),
+    addAgent: (channelId: string, agentDefinitionId: string) =>
+      fetch(`/api/chat-channels/${channelId}/agents`, {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify({ agentDefinitionId }),
+      }).then(handleResponse),
+    removeAgent: (channelId: string, agentDefinitionId: string) =>
+      fetch(`/api/chat-channels/${channelId}/agents`, {
+        method: "DELETE",
+        headers: jsonHeaders,
+        body: JSON.stringify({ agentDefinitionId }),
+      }).then(handleResponse),
   },
 };

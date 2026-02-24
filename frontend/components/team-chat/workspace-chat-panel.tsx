@@ -1,17 +1,35 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Hash, MessageCircle, Send, Loader2, Users, UserMinus, UserPlus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
+import {
+  Bot,
+  Hash,
+  Loader2,
+  MessageCircle,
+  Send,
+  Trash2,
+  UserMinus,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useTeamMembers } from "@/lib/hooks/use-team";
+import { api } from "@/lib/api";
+import { dbAgentDefinitionSchema, type DbAgentDefinition } from "@/lib/types/agent";
 import {
+  useAddWorkspaceChatChannelAgent,
   useAddWorkspaceChatChannelMember,
+  useRemoveWorkspaceChatChannelAgent,
   useRemoveWorkspaceChatChannelMember,
+  useWorkspaceChatChannelAgents,
   useWorkspaceChatChannelMembers,
   useSendWorkspaceChatMessage,
   useWorkspaceChatChannels,
@@ -19,32 +37,39 @@ import {
 } from "@/lib/hooks/use-workspace-chat";
 import type { DbChatMessage } from "@/lib/types/team";
 
+const agentsArraySchema = z.array(dbAgentDefinitionSchema);
+
 function ChatMessage({ msg, isOwn }: { msg: DbChatMessage; isOwn: boolean }) {
-  const displayName = msg.userName || msg.userEmail.split("@")[0];
-  const initial = (msg.userName?.[0] ?? msg.userEmail[0] ?? "?").toUpperCase();
+  const isBot = !!msg.agentDefinitionId;
+  const displayName = isBot
+    ? (msg.agentName ?? "Agent")
+    : (msg.userName || msg.userEmail.split("@")[0]);
+  const initial = isBot ? "A" : (msg.userName?.[0] ?? msg.userEmail[0] ?? "?").toUpperCase();
 
   return (
-    <div className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-2.5 ${isOwn && !isBot ? "flex-row-reverse" : ""}`}>
       <div
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${
-          isOwn
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-muted-foreground"
+          isBot
+            ? "bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300"
+            : isOwn
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground"
         }`}
       >
-        {initial}
+        {isBot ? <Bot className="h-3.5 w-3.5" /> : initial}
       </div>
-      <div className={`flex max-w-[75%] flex-col gap-0.5 ${isOwn ? "items-end" : ""}`}>
-        {!isOwn && (
-          <span className="px-1 text-[11px] font-medium text-muted-foreground">
-            {displayName}
-          </span>
-        )}
+      <div className={`flex max-w-[75%] flex-col gap-0.5 ${isOwn && !isBot ? "items-end" : ""}`}>
+        <span className="px-1 text-[11px] font-medium text-muted-foreground">
+          {displayName}{isBot && <span className="ml-1 text-violet-500">bot</span>}
+        </span>
         <div
           className={`rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
-            isOwn
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-foreground"
+            isBot
+              ? "border border-violet-200 bg-violet-50 text-foreground dark:border-violet-800 dark:bg-violet-950"
+              : isOwn
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-foreground"
           }`}
         >
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
@@ -71,6 +96,7 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
 
   const [message, setMessage] = useState("");
   const [newMemberId, setNewMemberId] = useState("");
+  const [newAgentId, setNewAgentId] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevChannelRef = useRef<string | null>(null);
@@ -79,15 +105,29 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
     useWorkspaceChatMessages(channelId);
   const { data: channelMembers = [], isLoading: membersLoading } =
     useWorkspaceChatChannelMembers(channelId);
+  const { data: channelAgents = [] } =
+    useWorkspaceChatChannelAgents(channelId);
+  const { data: allAgents = [] } = useQuery<DbAgentDefinition[]>({
+    queryKey: ["agent-definitions"],
+    queryFn: async () => {
+      const d = await api.agentDefinitions.list();
+      return agentsArraySchema.parse(d);
+    },
+    staleTime: 30_000,
+  });
+
   const sendMessage = useSendWorkspaceChatMessage(channelId, userId);
   const addMember = useAddWorkspaceChatChannelMember(channelId);
   const removeMember = useRemoveWorkspaceChatChannelMember(channelId);
+  const addAgent = useAddWorkspaceChatChannelAgent(channelId);
+  const removeAgent = useRemoveWorkspaceChatChannelAgent(channelId);
 
   useEffect(() => {
     if (channelId !== prevChannelRef.current) {
       prevChannelRef.current = channelId;
       setMessage("");
       setNewMemberId("");
+      setNewAgentId("");
       requestAnimationFrame(() => {
         endRef.current?.scrollIntoView();
       });
@@ -116,6 +156,14 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
     () => teamMembers.filter((m) => !memberIds.has(m.userId)),
     [teamMembers, memberIds],
   );
+  const channelAgentIds = useMemo(
+    () => new Set(channelAgents.map((a) => a.agentDefinitionId)),
+    [channelAgents],
+  );
+  const availableAgents = useMemo(
+    () => allAgents.filter((a) => a.isActive && !channelAgentIds.has(a.id)),
+    [allAgents, channelAgentIds],
+  );
 
   const handleSend = useCallback(() => {
     const trimmed = message.trim();
@@ -127,23 +175,41 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
   const handleAddMember = useCallback(() => {
     if (!newMemberId || activeChannel?.kind !== "channel") return;
     addMember.mutate(newMemberId, {
-      onSuccess: () => {
-        setNewMemberId("");
-      },
-      onError: (err) => {
-        toast(err instanceof Error ? err.message : "Failed to add member", "error");
-      },
+      onSuccess: () => setNewMemberId(""),
+      onError: (err) =>
+        toast(err instanceof Error ? err.message : "Failed to add member", "error"),
     });
   }, [newMemberId, activeChannel?.kind, addMember, toast]);
 
-  const handleRemoveMember = useCallback((memberUserId: string) => {
-    if (activeChannel?.kind !== "channel") return;
-    removeMember.mutate(memberUserId, {
-      onError: (err) => {
-        toast(err instanceof Error ? err.message : "Failed to remove member", "error");
-      },
+  const handleRemoveMember = useCallback(
+    (memberUserId: string) => {
+      if (activeChannel?.kind !== "channel") return;
+      removeMember.mutate(memberUserId, {
+        onError: (err) =>
+          toast(err instanceof Error ? err.message : "Failed to remove member", "error"),
+      });
+    },
+    [activeChannel?.kind, removeMember, toast],
+  );
+
+  const handleAddAgent = useCallback(() => {
+    if (!newAgentId) return;
+    addAgent.mutate(newAgentId, {
+      onSuccess: () => setNewAgentId(""),
+      onError: (err) =>
+        toast(err instanceof Error ? err.message : "Failed to add agent", "error"),
     });
-  }, [activeChannel?.kind, removeMember, toast]);
+  }, [newAgentId, addAgent, toast]);
+
+  const handleRemoveAgent = useCallback(
+    (agentDefId: string) => {
+      removeAgent.mutate(agentDefId, {
+        onError: (err) =>
+          toast(err instanceof Error ? err.message : "Failed to remove agent", "error"),
+      });
+    },
+    [removeAgent, toast],
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -158,13 +224,16 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
                 <Users className="h-4 w-4 text-muted-foreground" />
               )}
               <div>
-                <h1 className="text-sm font-semibold">
-                  {activeChannel.name}
-                </h1>
+                <h1 className="text-sm font-semibold">{activeChannel.name}</h1>
                 <p className="text-[11px] text-muted-foreground">
                   {activeChannel.kind === "direct"
                     ? "Direct conversation"
                     : "Channel"}
+                  {channelAgents.length > 0 && (
+                    <span className="ml-1.5 text-violet-500">
+                      · {channelAgents.length} agent{channelAgents.length > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -172,10 +241,11 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
                   <Users className="h-3.5 w-3.5" />
-                  {channelMembers.length}
+                  {channelMembers.length + channelAgents.length}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 p-3">
+                {/* Members section */}
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Members
@@ -184,7 +254,7 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   )}
                 </div>
-                <div className="max-h-56 space-y-1 overflow-y-auto">
+                <div className="max-h-40 space-y-1 overflow-y-auto">
                   {channelMembers.map((m) => (
                     <div
                       key={m.userId}
@@ -208,17 +278,14 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
                       )}
                     </div>
                   ))}
-                  {channelMembers.length === 0 && (
-                    <p className="px-2 py-1 text-xs text-muted-foreground">No members</p>
-                  )}
                 </div>
 
-                {activeChannel.kind === "channel" && (
-                  <div className="mt-3 flex gap-2">
+                {activeChannel.kind === "channel" && availableMembers.length > 0 && (
+                  <div className="mt-2 flex gap-2">
                     <select
                       value={newMemberId}
                       onChange={(e) => setNewMemberId(e.target.value)}
-                      className="h-8 flex-1 rounded-md border bg-background px-2 text-xs"
+                      className="h-7 flex-1 rounded-md border bg-background px-2 text-xs"
                       disabled={addMember.isPending}
                     >
                       <option value="">Add teammate...</option>
@@ -231,7 +298,7 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
                     <Button
                       size="sm"
                       variant="secondary"
-                      className="h-8 px-2"
+                      className="h-7 px-2"
                       disabled={!newMemberId || addMember.isPending}
                       onClick={handleAddMember}
                     >
@@ -243,14 +310,89 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
                     </Button>
                   </div>
                 )}
+
+                {/* Agents section */}
+                <Separator className="my-3" />
+                <div className="mb-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Agents
+                  </p>
+                </div>
+                <div className="max-h-40 space-y-1 overflow-y-auto">
+                  {channelAgents.length === 0 && (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">
+                      No agents — add one to get AI responses
+                    </p>
+                  )}
+                  {channelAgents.map((a) => (
+                    <div
+                      key={a.agentDefinitionId}
+                      className="flex items-center justify-between rounded px-2 py-1 text-sm"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Bot className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{a.name}</p>
+                          {a.description && (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {a.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                        onClick={() => handleRemoveAgent(a.agentDefinitionId)}
+                        disabled={removeAgent.isPending}
+                        aria-label="Remove agent"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {availableAgents.length > 0 && (
+                  <div className="mt-2 flex gap-2">
+                    <select
+                      value={newAgentId}
+                      onChange={(e) => setNewAgentId(e.target.value)}
+                      className="h-7 flex-1 rounded-md border bg-background px-2 text-xs"
+                      disabled={addAgent.isPending}
+                    >
+                      <option value="">Add agent...</option>
+                      {availableAgents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 px-2"
+                      disabled={!newAgentId || addAgent.isPending}
+                      onClick={handleAddAgent}
+                    >
+                      {addAgent.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Bot className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+                {allAgents.length === 0 && (
+                  <p className="mt-1 px-2 text-[11px] text-muted-foreground">
+                    Create agents in the Agents page first
+                  </p>
+                )}
               </PopoverContent>
             </Popover>
           </>
         ) : (
           <div>
-            <h1 className="text-sm font-semibold text-muted-foreground">
-              Loading...
-            </h1>
+            <h1 className="text-sm font-semibold text-muted-foreground">Loading...</h1>
           </div>
         )}
       </div>

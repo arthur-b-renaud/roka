@@ -20,14 +20,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useConvertToDatabase } from "@/lib/hooks/use-create-database";
-import { Smile, MoreHorizontal, Database, ImagePlus } from "lucide-react";
+import { Smile, MoreHorizontal, Database, ImagePlus, Clock } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
 interface PageHeaderProps {
   node: DbNode;
+  onOpenHistory?: () => void;
 }
 
-export function PageHeader({ node }: PageHeaderProps) {
+export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(node.title);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -173,6 +174,12 @@ export function PageHeader({ node }: PageHeaderProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" sideOffset={4}>
+              {onOpenHistory && (
+                <DropdownMenuItem onClick={onOpenHistory}>
+                  <Clock className="mr-2 h-4 w-4" />
+                  Page history
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={handleConvertClick}>
                 <Database className="mr-2 h-4 w-4" />
                 Convert to Database

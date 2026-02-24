@@ -53,6 +53,8 @@ export const dbChatMessageSchema = z.object({
   channelId: z.string().uuid(),
   userId: z.string().uuid(),
   content: z.string(),
+  agentDefinitionId: z.string().uuid().nullable().optional(),
+  agentName: z.string().nullable().optional(),
   createdAt: z.string(),
   userName: z.string().nullable(),
   userEmail: z.string(),
@@ -60,6 +62,16 @@ export const dbChatMessageSchema = z.object({
 });
 
 export type DbChatMessage = z.infer<typeof dbChatMessageSchema>;
+
+export const dbChannelAgentSchema = z.object({
+  id: z.string().uuid(),
+  agentDefinitionId: z.string().uuid(),
+  name: z.string(),
+  description: z.string(),
+  createdAt: z.string(),
+});
+
+export type DbChannelAgent = z.infer<typeof dbChannelAgentSchema>;
 
 export const dbChatChannelMemberSchema = z.object({
   id: z.string().uuid(),

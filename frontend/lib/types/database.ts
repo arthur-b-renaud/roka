@@ -125,6 +125,32 @@ export const dbFileSchema = z.object({
   createdAt: z.string(),
 });
 
+// ──────────────────────────────────────────────
+// Node Revisions (history)
+// ──────────────────────────────────────────────
+
+export const nodeRevisionMetaSchema = z.object({
+  id: z.string().uuid(),
+  nodeId: z.string().uuid(),
+  operation: z.string(),
+  changedFields: z.array(z.string()).nullable(),
+  actorType: z.string(),
+  actorId: z.string().nullable(),
+  actorDisplayName: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const nodeRevisionFullSchema = nodeRevisionMetaSchema.extend({
+  old_data: z.record(z.unknown()).nullable().optional(),
+  new_data: z.record(z.unknown()).nullable().optional(),
+});
+
+export const nodeHistoryResponseSchema = z.object({
+  revisions: z.array(z.record(z.unknown())),
+  total: z.number(),
+});
+
 // Param validation
 export const uuidSchema = z.string().uuid();
 
@@ -144,3 +170,5 @@ export type DbDatabaseView = z.infer<typeof dbDatabaseViewSchema>;
 export type SearchResult = z.infer<typeof searchResultSchema>;
 export type AppSetting = z.infer<typeof appSettingSchema>;
 export type DbFile = z.infer<typeof dbFileSchema>;
+export type NodeRevisionMeta = z.infer<typeof nodeRevisionMetaSchema>;
+export type NodeRevisionFull = z.infer<typeof nodeRevisionFullSchema>;

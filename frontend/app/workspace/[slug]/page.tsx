@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +23,10 @@ const DatabaseRowPage = dynamic(
   () => import("@/components/grid/database-row-page").then((m) => ({ default: m.DatabaseRowPage })),
   { ssr: false }
 );
+const PageHistoryPanel = dynamic(
+  () => import("@/components/editor/page-history-panel").then((m) => ({ default: m.PageHistoryPanel })),
+  { ssr: false }
+);
 import { dbNodeSchema, type DbNode } from "@/lib/types/database";
 import { parseNodeId } from "@/lib/slug";
 
@@ -29,6 +34,7 @@ export default function NodePage() {
   const params = useParams();
   const rawSlug = params.slug as string;
   const nodeId = parseNodeId(rawSlug) ?? "";
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const { data: node, isLoading, error } = useQuery<DbNode>({
     queryKey: ["node", nodeId],
@@ -65,14 +71,14 @@ export default function NodePage() {
       <EditorErrorBoundary>
         {node.type === "database" ? (
           <>
-            <PageHeader node={node} />
+            <PageHeader node={node} onOpenHistory={() => setHistoryOpen(true)} />
             <DatabaseView key={node.id} node={node} />
           </>
         ) : node.type === "database_row" ? (
           <DatabaseRowPage key={node.id} node={node} />
         ) : (
           <>
-            <PageHeader node={node} />
+            <PageHeader node={node} onOpenHistory={() => setHistoryOpen(true)} />
             <PageEditor key={node.id} node={node} />
             <div className="mt-6">
               <ChatPanel nodeId={node.id} minimalMode />
@@ -80,6 +86,11 @@ export default function NodePage() {
           </>
         )}
       </EditorErrorBoundary>
+      <PageHistoryPanel
+        nodeId={nodeId}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   );
 }

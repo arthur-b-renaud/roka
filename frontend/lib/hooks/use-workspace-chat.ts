@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "@/lib/api";
 import {
+  dbChannelAgentSchema,
   dbChatChannelMemberSchema,
   dbChatChannelSchema,
   dbChatMessageSchema,
+  type DbChannelAgent,
   type DbChatChannel,
   type DbChatChannelMember,
   type DbChatMessage,
@@ -17,6 +19,7 @@ const channelsListSchema = z.object({
 
 const chatMessagesSchema = z.array(dbChatMessageSchema);
 const chatChannelMembersSchema = z.array(dbChatChannelMemberSchema);
+const channelAgentsSchema = z.array(dbChannelAgentSchema);
 
 export function useWorkspaceChatChannels() {
   return useQuery<{ channels: DbChatChannel[]; directs: DbChatChannel[] }>({
@@ -166,6 +169,53 @@ export function useRemoveWorkspaceChatChannelMember(channelId: string | null) {
         });
       }
       queryClient.invalidateQueries({ queryKey: ["workspace-chat-channels"] });
+    },
+  });
+}
+
+export function useWorkspaceChatChannelAgents(channelId: string | null) {
+  return useQuery<DbChannelAgent[]>({
+    queryKey: ["workspace-chat-channel-agents", channelId],
+    queryFn: async () => {
+      if (!channelId) return [];
+      const data = await api.chatChannels.agents(channelId);
+      return channelAgentsSchema.parse(data);
+    },
+    enabled: !!channelId,
+    staleTime: 15_000,
+  });
+}
+
+export function useAddWorkspaceChatChannelAgent(channelId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentDefinitionId: string) => {
+      if (!channelId) throw new Error("No active channel selected");
+      return api.chatChannels.addAgent(channelId, agentDefinitionId);
+    },
+    onSuccess: () => {
+      if (channelId) {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-chat-channel-agents", channelId],
+        });
+      }
+    },
+  });
+}
+
+export function useRemoveWorkspaceChatChannelAgent(channelId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentDefinitionId: string) => {
+      if (!channelId) throw new Error("No active channel selected");
+      return api.chatChannels.removeAgent(channelId, agentDefinitionId);
+    },
+    onSuccess: () => {
+      if (channelId) {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-chat-channel-agents", channelId],
+        });
+      }
     },
   });
 }

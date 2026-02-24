@@ -201,6 +201,46 @@ async def _load_conversation_messages(conversation_id: str, limit: int = 50) -> 
     return [dict(r) for r in rows]
 
 
+async def _load_channel_messages(channel_id: str, limit: int = 30) -> list[dict]:
+    """Load recent chat channel messages for agent context."""
+    pool = get_pool()
+    rows = await pool.fetch("""
+        SELECT
+            u.name AS user_name,
+            u.email AS user_email,
+            ccm.content,
+            ccm.agent_definition_id,
+            ad.name AS agent_name
+        FROM chat_channel_messages ccm
+        INNER JOIN users u ON u.id = ccm.user_id
+        LEFT JOIN agent_definitions ad ON ad.id = ccm.agent_definition_id
+        WHERE ccm.channel_id = $1
+        ORDER BY ccm.created_at DESC
+        LIMIT $2
+    """, uuid.UUID(channel_id), limit)
+    # Reverse to chronological
+    return [dict(r) for r in reversed(rows)]
+
+
+async def _save_channel_message(
+    channel_id: str,
+    owner_id: str,
+    agent_def_id: str,
+    content: str,
+) -> None:
+    """Persist an agent response to a chat channel."""
+    pool = get_pool()
+    await pool.execute("""
+        INSERT INTO chat_channel_messages (channel_id, user_id, content, agent_definition_id)
+        VALUES ($1, $2, $3, $4)
+    """,
+        uuid.UUID(channel_id),
+        uuid.UUID(owner_id),
+        content,
+        uuid.UUID(agent_def_id),
+    )
+
+
 async def run_agent_workflow(
     task_id: str,
     node_id: str | None,
@@ -227,6 +267,7 @@ async def run_agent_workflow(
 
         conversation_id = task_input.get("conversation_id")
         agent_def_id = task_input.get("agent_definition_id")
+        channel_id = task_input.get("channel_id")
         minimal_mode = bool(task_input.get("minimal_mode"))
         if not node_id:
             node_id = task_input.get("node_id") or None
@@ -277,7 +318,17 @@ async def run_agent_workflow(
 
         # Build message history for multi-turn
         messages: list[BaseMessage] = []
-        if conversation_id:
+        if channel_id:
+            with tracer.start_as_current_span("agent.load_channel_history"):
+                from langchain_core.messages import AIMessage
+                history = await _load_channel_messages(channel_id)
+                for msg in history:
+                    if msg["agent_definition_id"] is not None:
+                        messages.append(AIMessage(content=msg["content"]))
+                    else:
+                        sender = msg["user_name"] or msg["user_email"].split("@")[0]
+                        messages.append(HumanMessage(content=f"[{sender}]: {msg['content']}"))
+        elif conversation_id:
             with tracer.start_as_current_span("agent.load_history"):
                 history = await _load_conversation_messages(conversation_id)
                 for msg in history:
@@ -287,19 +338,23 @@ async def run_agent_workflow(
                         from langchain_core.messages import AIMessage
                         messages.append(AIMessage(content=msg["content"]))
 
-        # Add current prompt
-        messages.append(HumanMessage(content=prompt))
+        # For non-channel modes, add current prompt explicitly
+        if not channel_id:
+            messages.append(HumanMessage(content=prompt))
 
-        # Save user message to conversation
-        if conversation_id:
+        # Save user message to conversation (channel messages already persisted)
+        if conversation_id and not channel_id:
             await _save_message(conversation_id, "user", prompt, task_id)
 
         # Create agent with LangGraph checkpointer for persistent memory
         checkpointer = get_checkpointer()
         agent = create_react_agent(model, tools, prompt=full_system, checkpointer=checkpointer)
 
-        # Thread config: conversation_id for multi-turn, or task_id for one-shot
-        thread_id = conversation_id or task_id
+        # Thread config: channel+agent for channel mode, conversation_id for multi-turn, or task_id for one-shot
+        if channel_id and agent_def_id:
+            thread_id = f"chan:{channel_id}:agent:{agent_def_id}"
+        else:
+            thread_id = conversation_id or task_id
         config = {"configurable": {"thread_id": thread_id}}
 
         with tracer.start_as_current_span("agent.invoke"):
@@ -377,8 +432,10 @@ async def run_agent_workflow(
             UPDATE agent_tasks SET trace_log = $1::jsonb WHERE id = $2
         """, trace_json, uuid.UUID(task_id))
 
-        # Save assistant response to conversation
-        if conversation_id:
+        # Save assistant response
+        if channel_id and agent_def_id and final_text:
+            await _save_channel_message(channel_id, owner_id, agent_def_id, final_text)
+        elif conversation_id:
             await _save_message(
                 conversation_id, "assistant", final_text, task_id,
                 metadata={"model": model_override or "default"},

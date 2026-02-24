@@ -357,8 +357,23 @@ export const chatChannelMessages = pgTable("chat_channel_messages", {
   channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull().default(""),
+  agentDefinitionId: uuid("agent_definition_id").references(() => agentDefinitions.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const chatChannelAgents = pgTable(
+  "chat_channel_agents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+    agentDefinitionId: uuid("agent_definition_id").notNull().references(() => agentDefinitions.id, { onDelete: "cascade" }),
+    addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    uqChannelAgent: uniqueIndex("uq_chat_channel_agents_channel_agent").on(table.channelId, table.agentDefinitionId),
+  }),
+);
 
 // ── Zone I: Telemetry ──────────────────────────────────
 
@@ -474,6 +489,7 @@ export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => 
   team: one(teams, { fields: [chatChannels.teamId], references: [teams.id] }),
   members: many(chatChannelMembers),
   messages: many(chatChannelMessages),
+  agents: many(chatChannelAgents),
   creator: one(users, { fields: [chatChannels.createdBy], references: [users.id] }),
 }));
 
@@ -485,4 +501,11 @@ export const chatChannelMembersRelations = relations(chatChannelMembers, ({ one 
 export const chatChannelMessagesRelations = relations(chatChannelMessages, ({ one }) => ({
   channel: one(chatChannels, { fields: [chatChannelMessages.channelId], references: [chatChannels.id] }),
   user: one(users, { fields: [chatChannelMessages.userId], references: [users.id] }),
+  agentDefinition: one(agentDefinitions, { fields: [chatChannelMessages.agentDefinitionId], references: [agentDefinitions.id] }),
+}));
+
+export const chatChannelAgentsRelations = relations(chatChannelAgents, ({ one }) => ({
+  channel: one(chatChannels, { fields: [chatChannelAgents.channelId], references: [chatChannels.id] }),
+  agentDefinition: one(agentDefinitions, { fields: [chatChannelAgents.agentDefinitionId], references: [agentDefinitions.id] }),
+  addedByUser: one(users, { fields: [chatChannelAgents.addedBy], references: [users.id] }),
 }));
