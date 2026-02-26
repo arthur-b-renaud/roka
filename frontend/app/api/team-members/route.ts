@@ -11,22 +11,48 @@ export const GET = h.GET(async (userId) => {
   const members = await db
     .select({
       id: teamMembers.id,
+      teamId: teamMembers.teamId,
       userId: teamMembers.userId,
+      kind: teamMembers.kind,
+      displayName: teamMembers.displayName,
+      avatarUrl: teamMembers.avatarUrl,
+      description: teamMembers.description,
       role: teamMembers.role,
+      pageAccess: teamMembers.pageAccess,
+      allowedNodeIds: teamMembers.allowedNodeIds,
+      canWrite: teamMembers.canWrite,
+      systemPrompt: teamMembers.systemPrompt,
+      model: teamMembers.model,
+      toolIds: teamMembers.toolIds,
+      trigger: teamMembers.trigger,
+      triggerConfig: teamMembers.triggerConfig,
+      isActive: teamMembers.isActive,
       createdAt: teamMembers.createdAt,
-      name: users.name,
+      updatedAt: teamMembers.updatedAt,
       email: users.email,
       image: users.image,
     })
     .from(teamMembers)
-    .innerJoin(users, eq(teamMembers.userId, users.id))
+    .leftJoin(users, eq(teamMembers.userId, users.id))
     .where(eq(teamMembers.teamId, membership.teamId));
 
   return members;
 });
 
-const inviteSchema = z.object({
-  email: z.string().email().transform((e) => e.toLowerCase().trim()),
+const createSchema = z.object({
+  kind: z.enum(["human", "ai"]),
+  email: z.string().email().optional(),
+  displayName: z.string().min(1).optional(),
+  description: z.string().default(""),
+  role: z.enum(["owner", "admin", "member"]).default("member"),
+  pageAccess: z.enum(["all", "selected"]).default("all"),
+  allowedNodeIds: z.array(z.string().uuid()).default([]),
+  canWrite: z.boolean().default(true),
+  systemPrompt: z.string().default(""),
+  model: z.string().default(""),
+  toolIds: z.array(z.string().uuid()).default([]),
+  trigger: z.enum(["manual", "schedule", "event"]).default("manual"),
+  triggerConfig: z.record(z.unknown()).default({}),
 });
 
 export const POST = h.mutation(
@@ -36,41 +62,74 @@ export const POST = h.mutation(
       throw new Error("Forbidden");
     }
 
-    const [targetUser] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, data.email))
-      .limit(1);
+    if (data.kind === "human") {
+      if (!data.email) throw new Error("Email is required for human members");
 
-    if (!targetUser) {
-      throw new Error("User not found — they must sign up first");
+      const [targetUser] = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(eq(users.email, data.email.toLowerCase().trim()))
+        .limit(1);
+
+      if (!targetUser) {
+        throw new Error("User not found — they must sign up first");
+      }
+
+      const [existing] = await db
+        .select({ id: teamMembers.id })
+        .from(teamMembers)
+        .where(
+          and(
+            eq(teamMembers.teamId, membership.teamId),
+            eq(teamMembers.userId, targetUser.id),
+          ),
+        )
+        .limit(1);
+
+      if (existing) {
+        throw new Error("User is already a team member");
+      }
+
+      const [created] = await db
+        .insert(teamMembers)
+        .values({
+          teamId: membership.teamId,
+          userId: targetUser.id,
+          kind: "human",
+          displayName: data.displayName || targetUser.name || data.email.split("@")[0],
+          role: data.role,
+          pageAccess: data.pageAccess,
+          allowedNodeIds: data.allowedNodeIds,
+          canWrite: data.canWrite,
+        })
+        .returning();
+
+      return created;
     }
 
-    const [existing] = await db
-      .select({ id: teamMembers.id })
-      .from(teamMembers)
-      .where(
-        and(
-          eq(teamMembers.teamId, membership.teamId),
-          eq(teamMembers.userId, targetUser.id),
-        ),
-      )
-      .limit(1);
-
-    if (existing) {
-      throw new Error("User is already a team member");
-    }
+    // AI member
+    if (!data.displayName) throw new Error("Name is required for AI members");
 
     const [created] = await db
       .insert(teamMembers)
       .values({
         teamId: membership.teamId,
-        userId: targetUser.id,
-        role: "member",
+        kind: "ai",
+        displayName: data.displayName,
+        description: data.description,
+        role: data.role,
+        pageAccess: data.pageAccess,
+        allowedNodeIds: data.allowedNodeIds,
+        canWrite: data.canWrite,
+        systemPrompt: data.systemPrompt,
+        model: data.model,
+        toolIds: data.toolIds,
+        trigger: data.trigger,
+        triggerConfig: data.triggerConfig,
       })
       .returning();
 
     return created;
   },
-  { schema: inviteSchema },
+  { schema: createSchema },
 );

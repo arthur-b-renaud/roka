@@ -1,22 +1,41 @@
 import { db } from "@/lib/db";
 import { nodes } from "@/lib/db/schema";
 import { withActor } from "@/lib/db/with-actor";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
+import { assertWriteAccess } from "@/lib/permissions";
 
-// GET /api/nodes/:id
+// GET /api/nodes/:id — owner gets full access; team members get viewer access on team-visible pages
 export const GET = h.GET(async (userId, _req, ctx) => {
   const { id } = ctx.params;
 
   const [node] = await db
     .select()
     .from(nodes)
-    .where(and(eq(nodes.id, id), eq(nodes.ownerId, userId)))
+    .where(
+      and(
+        eq(nodes.id, id),
+        or(
+          eq(nodes.ownerId, userId),
+          and(
+            eq(nodes.visibility, "team"),
+            sql`EXISTS (
+              SELECT 1 FROM team_members tm1
+              JOIN team_members tm2 ON tm1.team_id = tm2.team_id
+              WHERE tm1.user_id = ${userId}
+                AND tm2.user_id = ${nodes.ownerId}
+            )`,
+          ),
+        ),
+      ),
+    )
     .limit(1);
 
   if (!node) throw new Error("Node not found");
-  return node;
+
+  const accessLevel = node.ownerId === userId ? "owner" : "viewer";
+  return { ...node, accessLevel };
 });
 
 const updateNodeSchema = z.object({
@@ -35,6 +54,7 @@ const updateNodeSchema = z.object({
 // PATCH /api/nodes/:id
 export const PATCH = h.mutation(async (data, userId, _req, ctx) => {
   const { id } = ctx.params;
+  await assertWriteAccess(userId);
 
   const update: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(data)) {
@@ -56,6 +76,7 @@ export const PATCH = h.mutation(async (data, userId, _req, ctx) => {
 // DELETE /api/nodes/:id
 export const DELETE = h.mutation(async (_data, userId, _req, ctx) => {
   const { id } = ctx.params;
+  await assertWriteAccess(userId);
 
   await withActor("human", userId, (tx) =>
     tx.delete(nodes).where(and(eq(nodes.id, id), eq(nodes.ownerId, userId))),

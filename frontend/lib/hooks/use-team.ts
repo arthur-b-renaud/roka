@@ -5,6 +5,8 @@ import {
   dbTeamMemberSchema,
   type DbTeam,
   type DbTeamMember,
+  type CreateMemberInput,
+  type UpdateMemberInput,
 } from "@/lib/types/team";
 import { z } from "zod";
 
@@ -37,23 +39,23 @@ export function useTeamRole() {
   return team?.role ?? null;
 }
 
-export function useInviteExistingMember() {
+export function useCreateMember() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (email: string) => api.teamMembers.invite(email),
+    mutationFn: (data: CreateMemberInput) => api.teamMembers.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
     },
   });
 }
 
-export function useUpdateMemberRole() {
+export function useUpdateMember() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, role }: { id: string; role: string }) =>
-      api.teamMembers.updateRole(id, role),
+    mutationFn: ({ id, ...data }: UpdateMemberInput & { id: string }) =>
+      api.teamMembers.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
     },

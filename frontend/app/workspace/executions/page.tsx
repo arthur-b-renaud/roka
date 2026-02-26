@@ -40,7 +40,7 @@ type Execution = {
   output: Record<string, unknown> | null;
   error: string | null;
   traceLog: TraceStep[];
-  agentDefinitionId: string | null;
+  memberId: string | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;

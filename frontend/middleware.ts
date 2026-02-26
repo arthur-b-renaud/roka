@@ -7,7 +7,9 @@ export default auth((req) => {
   // /api excluded from matcher — api-handler enforces auth there
   const isPublic =
     pathname.startsWith("/auth/") ||
-    pathname.startsWith("/setup");
+    pathname.startsWith("/setup") ||
+    pathname.startsWith("/share/") ||
+    pathname.startsWith("/p/");
 
   if (pathname === "/") {
     return NextResponse.redirect(new URL("/workspace", req.url));

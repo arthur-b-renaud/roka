@@ -28,8 +28,14 @@ const PageHistoryPanel = dynamic(
   () => import("@/components/editor/page-history-panel").then((m) => ({ default: m.PageHistoryPanel })),
   { ssr: false }
 );
+const ReadOnlyEditor = dynamic(
+  () => import("@/components/editor/read-only-editor").then((m) => ({ default: m.ReadOnlyEditor })),
+  { ssr: false }
+);
 import { dbNodeSchema, type DbNode } from "@/lib/types/database";
 import { parseNodeId } from "@/lib/slug";
+
+type NodeWithAccess = DbNode & { accessLevel?: "owner" | "viewer" };
 
 export default function NodePage() {
   const params = useParams();
@@ -38,11 +44,12 @@ export default function NodePage() {
   const nodeId = parseNodeId(rawSlug) ?? "";
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const { data: node, isLoading, error } = useQuery<DbNode>({
+  const { data: node, isLoading, error } = useQuery<NodeWithAccess>({
     queryKey: ["node", nodeId],
     queryFn: async () => {
-      const data = await api.nodes.get(nodeId);
-      return dbNodeSchema.parse(data);
+      const raw = await api.nodes.get(nodeId);
+      const parsed = dbNodeSchema.parse(raw);
+      return { ...parsed, accessLevel: (raw as { accessLevel?: string }).accessLevel as "owner" | "viewer" | undefined };
     },
     enabled: !!nodeId,
   });
@@ -67,40 +74,55 @@ export default function NodePage() {
     );
   }
 
+  const isViewer = node.accessLevel === "viewer";
+
   return (
     <div className="mx-auto max-w-5xl px-8 pt-4 pb-8">
       <Breadcrumbs nodeId={nodeId} />
+      {isViewer && (
+        <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
+          You are viewing this page as a team member (read-only).
+        </div>
+      )}
       <EditorErrorBoundary>
         {node.type === "database" ? (
           <>
-            <PageHeader node={node} onOpenHistory={() => setHistoryOpen(true)} />
+            <PageHeader node={node} onOpenHistory={isViewer ? undefined : () => setHistoryOpen(true)} readOnly={isViewer} />
             <DatabaseView key={node.id} node={node} />
           </>
         ) : node.type === "database_row" ? (
           <DatabaseRowPage key={node.id} node={node} />
         ) : (
           <>
-            <PageHeader node={node} onOpenHistory={() => setHistoryOpen(true)} />
-            <PageEditor key={node.id} node={node} />
-            <div className="mt-6">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={() => router.push(`/workspace/chat?nodeId=${node.id}`)}
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-                Ask agent about this page
-              </Button>
-            </div>
+            <PageHeader node={node} onOpenHistory={isViewer ? undefined : () => setHistoryOpen(true)} readOnly={isViewer} />
+            {isViewer ? (
+              <ReadOnlyEditor key={node.id} content={node.content} />
+            ) : (
+              <>
+                <PageEditor key={node.id} node={node} />
+                <div className="mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => router.push(`/workspace/chat?nodeId=${node.id}`)}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Ask agent about this page
+                  </Button>
+                </div>
+              </>
+            )}
           </>
         )}
       </EditorErrorBoundary>
-      <PageHistoryPanel
-        nodeId={nodeId}
-        open={historyOpen}
-        onOpenChange={setHistoryOpen}
-      />
+      {!isViewer && (
+        <PageHistoryPanel
+          nodeId={nodeId}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+        />
+      )}
     </div>
   );
 }

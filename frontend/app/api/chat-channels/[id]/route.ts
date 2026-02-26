@@ -1,17 +1,13 @@
 import * as h from "@/lib/api-handler";
+import { uuidParamSchema } from "@/lib/api-handler";
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { db } from "@/lib/db";
 import { chatChannels } from "@/lib/db/schema";
 import { assertChannelMembership } from "@/lib/chat";
 import { ensureTeamMembership, isAdminOrOwner } from "@/lib/team";
 
-const channelIdParamSchema = z.object({
-  id: z.string().uuid("Invalid channel id"),
-});
-
-export const DELETE = h.GET(async (userId, _req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+export const DELETE = h.mutation(async (_data: void, userId, _req, ctx) => {
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }

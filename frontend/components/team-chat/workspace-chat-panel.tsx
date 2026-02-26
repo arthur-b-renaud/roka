@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
 import {
   Bot,
   FileText,
@@ -24,32 +22,29 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useTeamMembers } from "@/lib/hooks/use-team";
-import { api } from "@/lib/api";
-import { dbAgentDefinitionSchema, type DbAgentDefinition } from "@/lib/types/agent";
 import {
   useAddWorkspaceChatChannelAgent,
   useAddWorkspaceChatChannelMember,
   useRemoveWorkspaceChatChannelAgent,
   useRemoveWorkspaceChatChannelMember,
-  useWorkspaceChatChannelAgents,
   useWorkspaceChatChannelMembers,
   useSendWorkspaceChatMessage,
   useWorkspaceChatChannels,
   useWorkspaceChatMessages,
 } from "@/lib/hooks/use-workspace-chat";
-import type { DbChatMessage } from "@/lib/types/team";
+import type { DbChatMessage, DbTeamMember } from "@/lib/types/team";
 
-const agentsArraySchema = z.array(dbAgentDefinitionSchema);
+function ChatMessage({ msg, currentUserId }: { msg: DbChatMessage; currentUserId: string | null }) {
+  const isBot = msg.authorKind === "ai";
+  const displayName = msg.authorName ?? (isBot ? "Agent" : "User");
+  const initial = isBot ? "A" : (displayName?.[0] ?? "?").toUpperCase();
 
-function ChatMessage({ msg, isOwn }: { msg: DbChatMessage; isOwn: boolean }) {
-  const isBot = !!msg.agentDefinitionId;
-  const displayName = isBot
-    ? (msg.agentName ?? "Agent")
-    : (msg.userName || msg.userEmail.split("@")[0]);
-  const initial = isBot ? "A" : (msg.userName?.[0] ?? msg.userEmail[0] ?? "?").toUpperCase();
+  // For now, we can't perfectly detect "own" messages without member_id matching.
+  // We rely on authorKind: human messages without a name might be "You".
+  const isOwn = !isBot && msg.authorName === "You";
 
   return (
-    <div className={`flex gap-2.5 ${isOwn && !isBot ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
       <div
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${
           isBot
@@ -61,7 +56,7 @@ function ChatMessage({ msg, isOwn }: { msg: DbChatMessage; isOwn: boolean }) {
       >
         {isBot ? <Bot className="h-3.5 w-3.5" /> : initial}
       </div>
-      <div className={`flex max-w-[75%] flex-col gap-0.5 ${isOwn && !isBot ? "items-end" : ""}`}>
+      <div className={`flex max-w-[75%] flex-col gap-0.5 ${isOwn ? "items-end" : ""}`}>
         <span className="px-1 text-[11px] font-medium text-muted-foreground">
           {displayName}{isBot && <span className="ml-1 text-violet-500">bot</span>}
         </span>
@@ -92,7 +87,7 @@ interface WorkspaceChatPanelProps {
 export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: WorkspaceChatPanelProps) {
   const { userId } = useCurrentUser();
   const { toast } = useToast();
-  const { data: teamMembers = [] } = useTeamMembers();
+  const { data: allMembers = [] } = useTeamMembers();
   const { data } = useWorkspaceChatChannels();
   const channels = data?.channels ?? [];
   const directs = data?.directs ?? [];
@@ -109,16 +104,6 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
     useWorkspaceChatMessages(channelId);
   const { data: channelMembers = [], isLoading: membersLoading } =
     useWorkspaceChatChannelMembers(channelId);
-  const { data: channelAgents = [] } =
-    useWorkspaceChatChannelAgents(channelId);
-  const { data: allAgents = [] } = useQuery<DbAgentDefinition[]>({
-    queryKey: ["agent-definitions"],
-    queryFn: async () => {
-      const d = await api.agentDefinitions.list();
-      return agentsArraySchema.parse(d);
-    },
-    staleTime: 30_000,
-  });
 
   const sendMessage = useSendWorkspaceChatMessage(channelId, userId, pageContext);
   const addMember = useAddWorkspaceChatChannelMember(channelId);
@@ -152,21 +137,28 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
     () => [...channels, ...directs].find((c) => c.id === channelId) ?? null,
     [channels, directs, channelId],
   );
-  const memberIds = useMemo(
-    () => new Set(channelMembers.map((m) => m.userId)),
+
+  const humanChannelMembers = useMemo(
+    () => channelMembers.filter((m) => m.kind === "human"),
     [channelMembers],
   );
-  const availableMembers = useMemo(
-    () => teamMembers.filter((m) => !memberIds.has(m.userId)),
-    [teamMembers, memberIds],
+  const aiChannelMembers = useMemo(
+    () => channelMembers.filter((m) => m.kind === "ai"),
+    [channelMembers],
   );
-  const channelAgentIds = useMemo(
-    () => new Set(channelAgents.map((a) => a.agentDefinitionId)),
-    [channelAgents],
+
+  const channelMemberIds = useMemo(
+    () => new Set(channelMembers.map((m) => m.memberId)),
+    [channelMembers],
+  );
+
+  const availableHumans = useMemo(
+    () => allMembers.filter((m) => m.kind === "human" && !channelMemberIds.has(m.id)),
+    [allMembers, channelMemberIds],
   );
   const availableAgents = useMemo(
-    () => allAgents.filter((a) => a.isActive && !channelAgentIds.has(a.id)),
-    [allAgents, channelAgentIds],
+    () => allMembers.filter((m) => m.kind === "ai" && m.isActive && !channelMemberIds.has(m.id)),
+    [allMembers, channelMemberIds],
   );
 
   const handleSend = useCallback(() => {
@@ -186,9 +178,9 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
   }, [newMemberId, activeChannel?.kind, addMember, toast]);
 
   const handleRemoveMember = useCallback(
-    (memberUserId: string) => {
+    (memberId: string) => {
       if (activeChannel?.kind !== "channel") return;
-      removeMember.mutate(memberUserId, {
+      removeMember.mutate(memberId, {
         onError: (err) =>
           toast(err instanceof Error ? err.message : "Failed to remove member", "error"),
       });
@@ -206,8 +198,8 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
   }, [newAgentId, addAgent, toast]);
 
   const handleRemoveAgent = useCallback(
-    (agentDefId: string) => {
-      removeAgent.mutate(agentDefId, {
+    (memberId: string) => {
+      removeAgent.mutate(memberId, {
         onError: (err) =>
           toast(err instanceof Error ? err.message : "Failed to remove agent", "error"),
       });
@@ -233,9 +225,9 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                   {activeChannel.kind === "direct"
                     ? "Direct conversation"
                     : "Channel"}
-                  {channelAgents.length > 0 && (
+                  {aiChannelMembers.length > 0 && (
                     <span className="ml-1.5 text-violet-500">
-                      · {channelAgents.length} agent{channelAgents.length > 1 ? "s" : ""}
+                      · {aiChannelMembers.length} agent{aiChannelMembers.length > 1 ? "s" : ""}
                     </span>
                   )}
                 </p>
@@ -245,11 +237,11 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs">
                   <Users className="h-3.5 w-3.5" />
-                  {channelMembers.length + channelAgents.length}
+                  {channelMembers.length}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-80 p-3">
-                {/* Members section */}
+                {/* Human members */}
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Members
@@ -259,21 +251,19 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                   )}
                 </div>
                 <div className="max-h-40 space-y-1 overflow-y-auto">
-                  {channelMembers.map((m) => (
+                  {humanChannelMembers.map((m) => (
                     <div
-                      key={m.userId}
+                      key={m.memberId}
                       className="flex items-center justify-between rounded px-2 py-1 text-sm"
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {m.name || m.email.split("@")[0]}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{m.email}</p>
+                        <p className="truncate font-medium">{m.displayName}</p>
+                        {m.email && <p className="truncate text-xs text-muted-foreground">{m.email}</p>}
                       </div>
-                      {activeChannel.kind === "channel" && m.userId !== userId && (
+                      {activeChannel.kind === "channel" && (
                         <button
                           className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-                          onClick={() => handleRemoveMember(m.userId)}
+                          onClick={() => handleRemoveMember(m.memberId)}
                           disabled={removeMember.isPending}
                           aria-label="Remove member"
                         >
@@ -284,7 +274,7 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                   ))}
                 </div>
 
-                {activeChannel.kind === "channel" && availableMembers.length > 0 && (
+                {activeChannel.kind === "channel" && availableHumans.length > 0 && (
                   <div className="mt-2 flex gap-2">
                     <select
                       value={newMemberId}
@@ -293,9 +283,9 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                       disabled={addMember.isPending}
                     >
                       <option value="">Add teammate...</option>
-                      {availableMembers.map((m) => (
-                        <option key={m.userId} value={m.userId}>
-                          {m.name || m.email}
+                      {availableHumans.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.displayName}
                         </option>
                       ))}
                     </select>
@@ -315,7 +305,7 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                   </div>
                 )}
 
-                {/* Agents section */}
+                {/* AI agents */}
                 <Separator className="my-3" />
                 <div className="mb-2">
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -323,30 +313,23 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                   </p>
                 </div>
                 <div className="max-h-40 space-y-1 overflow-y-auto">
-                  {channelAgents.length === 0 && (
+                  {aiChannelMembers.length === 0 && (
                     <p className="px-2 py-1 text-xs text-muted-foreground">
                       No agents — add one to get AI responses
                     </p>
                   )}
-                  {channelAgents.map((a) => (
+                  {aiChannelMembers.map((a) => (
                     <div
-                      key={a.agentDefinitionId}
+                      key={a.memberId}
                       className="flex items-center justify-between rounded px-2 py-1 text-sm"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Bot className="h-3.5 w-3.5 shrink-0 text-violet-500" />
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{a.name}</p>
-                          {a.description && (
-                            <p className="truncate text-xs text-muted-foreground">
-                              {a.description}
-                            </p>
-                          )}
-                        </div>
+                        <p className="truncate font-medium">{a.displayName}</p>
                       </div>
                       <button
                         className="rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
-                        onClick={() => handleRemoveAgent(a.agentDefinitionId)}
+                        onClick={() => handleRemoveAgent(a.memberId)}
                         disabled={removeAgent.isPending}
                         aria-label="Remove agent"
                       >
@@ -367,7 +350,7 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                       <option value="">Add agent...</option>
                       {availableAgents.map((a) => (
                         <option key={a.id} value={a.id}>
-                          {a.name}
+                          {a.displayName}
                         </option>
                       ))}
                     </select>
@@ -386,9 +369,9 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
                     </Button>
                   </div>
                 )}
-                {allAgents.length === 0 && (
+                {availableAgents.length === 0 && allMembers.filter((m) => m.kind === "ai").length === 0 && (
                   <p className="mt-1 px-2 text-[11px] text-muted-foreground">
-                    Create agents in the Agents page first
+                    Create AI agents in the Team page first
                   </p>
                 )}
               </PopoverContent>
@@ -420,7 +403,7 @@ export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: Workspa
               <ChatMessage
                 key={msg.id}
                 msg={msg}
-                isOwn={msg.userId === userId}
+                currentUserId={userId}
               />
             ))}
           </div>

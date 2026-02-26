@@ -2,8 +2,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { chatChannels, chatChannelMembers, teamMembers } from "@/lib/db/schema";
 
-export function buildDirectMessageKey(userA: string, userB: string): string {
-  return [userA, userB].sort().join(":");
+export function buildDirectMessageKey(memberA: string, memberB: string): string {
+  return [memberA, memberB].sort().join(":");
 }
 
 export async function ensureGeneralChannel(teamId: string): Promise<string> {
@@ -36,15 +36,15 @@ export async function ensureGeneralChannel(teamId: string): Promise<string> {
   const channelId = created?.id;
   if (channelId) {
     const members = await db
-      .select({ userId: teamMembers.userId })
+      .select({ id: teamMembers.id })
       .from(teamMembers)
-      .where(eq(teamMembers.teamId, teamId));
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.kind, "human")));
 
     if (members.length > 0) {
       await db.insert(chatChannelMembers).values(
         members.map((m) => ({
           channelId,
-          userId: m.userId,
+          memberId: m.id,
         })),
       ).onConflictDoNothing();
     }
@@ -73,7 +73,13 @@ export async function assertChannelMembership(channelId: string, userId: string)
   const [membership] = await db
     .select({ id: chatChannelMembers.id })
     .from(chatChannelMembers)
-    .where(and(eq(chatChannelMembers.channelId, channelId), eq(chatChannelMembers.userId, userId)))
+    .innerJoin(teamMembers, eq(teamMembers.id, chatChannelMembers.memberId))
+    .where(
+      and(
+        eq(chatChannelMembers.channelId, channelId),
+        eq(teamMembers.userId, userId),
+      ),
+    )
     .limit(1);
 
   if (!membership) {

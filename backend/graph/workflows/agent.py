@@ -3,7 +3,8 @@ Conversational ReAct agent with persistent memory, dynamic tools, and telemetry.
 
 Leverages LangGraph's create_react_agent + AsyncPostgresSaver for multi-turn
 conversations. Tools loaded dynamically from tool_definitions table.
-Agent definitions configure persona, model, and available tools.
+AI team members (team_members where kind='ai') configure persona, model, and
+available tools.
 """
 
 import json
@@ -95,7 +96,7 @@ async def _build_model(
     api_key_override: str | None = None,
     api_base_override: str | None = None,
 ) -> ChatOpenAI:
-    """Create a ChatOpenAI instance, optionally overriding from agent_definition config."""
+    """Create a ChatOpenAI instance, optionally overriding from member config."""
     llm = await get_llm_config()
     if not llm.is_configured:
         raise ValueError("LLM not configured. Go to Settings to add your API key.")
@@ -118,22 +119,27 @@ async def _build_model(
     )
 
 
-async def _load_agent_definition(agent_def_id: str) -> Optional[dict[str, Any]]:
-    """Load an agent definition from the DB."""
+async def _load_member_definition(member_id: str) -> Optional[dict[str, Any]]:
+    """Load an AI team member's config from the DB."""
     pool = get_pool()
     row = await pool.fetchrow("""
-        SELECT id, name, system_prompt, model, tool_ids, trigger::text, trigger_config
-        FROM agent_definitions
-        WHERE id = $1 AND is_active = true
-    """, uuid.UUID(agent_def_id))
+        SELECT id, display_name, system_prompt, model, tool_ids,
+               trigger::text, trigger_config,
+               page_access::text, allowed_node_ids, can_write
+        FROM team_members
+        WHERE id = $1 AND kind = 'ai' AND is_active = true
+    """, uuid.UUID(member_id))
     if not row:
         return None
     return {
         "id": str(row["id"]),
-        "name": row["name"],
+        "name": row["display_name"],
         "system_prompt": row["system_prompt"],
         "model": row["model"],
         "tool_ids": [str(t) for t in row["tool_ids"]] if row["tool_ids"] else [],
+        "page_access": row["page_access"],
+        "allowed_node_ids": [str(n) for n in row["allowed_node_ids"]] if row["allowed_node_ids"] else [],
+        "can_write": row["can_write"],
     }
 
 
@@ -206,38 +212,33 @@ async def _load_channel_messages(channel_id: str, limit: int = 30) -> list[dict]
     pool = get_pool()
     rows = await pool.fetch("""
         SELECT
-            u.name AS user_name,
-            u.email AS user_email,
+            tm.display_name AS member_name,
+            tm.kind::text AS member_kind,
             ccm.content,
-            ccm.agent_definition_id,
-            ad.name AS agent_name
+            ccm.author_member_id
         FROM chat_channel_messages ccm
-        INNER JOIN users u ON u.id = ccm.user_id
-        LEFT JOIN agent_definitions ad ON ad.id = ccm.agent_definition_id
+        LEFT JOIN team_members tm ON tm.id = ccm.author_member_id
         WHERE ccm.channel_id = $1
         ORDER BY ccm.created_at DESC
         LIMIT $2
     """, uuid.UUID(channel_id), limit)
-    # Reverse to chronological
     return [dict(r) for r in reversed(rows)]
 
 
 async def _save_channel_message(
     channel_id: str,
-    owner_id: str,
-    agent_def_id: str,
+    author_member_id: str,
     content: str,
 ) -> None:
     """Persist an agent response to a chat channel."""
     pool = get_pool()
     await pool.execute("""
-        INSERT INTO chat_channel_messages (channel_id, user_id, content, agent_definition_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO chat_channel_messages (channel_id, content, author_member_id)
+        VALUES ($1, $2, $3)
     """,
         uuid.UUID(channel_id),
-        uuid.UUID(owner_id),
         content,
-        uuid.UUID(agent_def_id),
+        uuid.UUID(author_member_id),
     )
 
 
@@ -250,7 +251,7 @@ async def run_agent_workflow(
     """
     Entry point for the ReAct agent. Supports:
     - Multi-turn conversations via conversation_id
-    - Custom agent definitions via agent_definition_id
+    - Custom AI member config via member_id
     - Dynamic tool loading from DB
     - Persistent memory via LangGraph checkpointer
     - OpenTelemetry tracing
@@ -266,27 +267,32 @@ async def run_agent_workflow(
             return {"error": "No prompt provided in task input."}
 
         conversation_id = task_input.get("conversation_id")
-        agent_def_id = task_input.get("agent_definition_id")
+        member_id = task_input.get("member_id")
         channel_id = task_input.get("channel_id")
         minimal_mode = bool(task_input.get("minimal_mode"))
         if not node_id:
             node_id = task_input.get("node_id") or None
 
-        # Load agent definition if specified (disabled in minimal mode).
         system_prompt = MINIMAL_SYSTEM_PROMPT if minimal_mode else DEFAULT_SYSTEM_PROMPT
         model_override = None
         tool_ids = None
+        page_access = "all"
+        allowed_node_ids: list[str] = []
+        can_write = True
 
-        if (not minimal_mode) and agent_def_id:
+        if (not minimal_mode) and member_id:
             with tracer.start_as_current_span("agent.load_definition"):
-                agent_def = await _load_agent_definition(agent_def_id)
-                if agent_def:
-                    if agent_def["system_prompt"]:
-                        system_prompt = agent_def["system_prompt"]
-                    if agent_def["model"]:
-                        model_override = agent_def["model"]
-                    if agent_def["tool_ids"]:
-                        tool_ids = agent_def["tool_ids"]
+                member_def = await _load_member_definition(member_id)
+                if member_def:
+                    if member_def["system_prompt"]:
+                        system_prompt = member_def["system_prompt"]
+                    if member_def["model"]:
+                        model_override = member_def["model"]
+                    if member_def["tool_ids"]:
+                        tool_ids = member_def["tool_ids"]
+                    page_access = member_def.get("page_access", "all")
+                    allowed_node_ids = member_def.get("allowed_node_ids", [])
+                    can_write = member_def.get("can_write", True)
 
         # Build model
         try:
@@ -313,6 +319,13 @@ async def run_agent_workflow(
             context = await _build_context(node_id, owner_id)
 
         full_system = system_prompt
+
+        # Inject permission constraints for restricted AI members
+        if not can_write:
+            full_system += "\n\n## PERMISSION: You have READ-ONLY access. Do NOT use create_node, update_node_properties, or append_text_to_page."
+        if page_access == "selected" and allowed_node_ids:
+            full_system += f"\n\n## PERMISSION: You can only access these page IDs: {', '.join(allowed_node_ids[:20])}"
+
         if context:
             full_system += f"\n\n{context}"
 
@@ -323,10 +336,10 @@ async def run_agent_workflow(
                 from langchain_core.messages import AIMessage
                 history = await _load_channel_messages(channel_id)
                 for msg in history:
-                    if msg["agent_definition_id"] is not None:
+                    if msg["member_kind"] == "ai":
                         messages.append(AIMessage(content=msg["content"]))
                     else:
-                        sender = msg["user_name"] or msg["user_email"].split("@")[0]
+                        sender = msg["member_name"] or "User"
                         messages.append(HumanMessage(content=f"[{sender}]: {msg['content']}"))
         elif conversation_id:
             with tracer.start_as_current_span("agent.load_history"):
@@ -350,9 +363,9 @@ async def run_agent_workflow(
         checkpointer = get_checkpointer()
         agent = create_react_agent(model, tools, prompt=full_system, checkpointer=checkpointer)
 
-        # Thread config: channel+agent for channel mode, conversation_id for multi-turn, or task_id for one-shot
-        if channel_id and agent_def_id:
-            thread_id = f"chan:{channel_id}:agent:{agent_def_id}"
+        # Thread config: channel+member for channel mode, conversation_id for multi-turn, or task_id for one-shot
+        if channel_id and member_id:
+            thread_id = f"chan:{channel_id}:member:{member_id}"
         else:
             thread_id = conversation_id or task_id
         config = {"configurable": {"thread_id": thread_id}}
@@ -433,8 +446,8 @@ async def run_agent_workflow(
         """, trace_json, uuid.UUID(task_id))
 
         # Save assistant response
-        if channel_id and agent_def_id and final_text:
-            await _save_channel_message(channel_id, owner_id, agent_def_id, final_text)
+        if channel_id and member_id and final_text:
+            await _save_channel_message(channel_id, member_id, final_text)
         elif conversation_id:
             await _save_message(
                 conversation_id, "assistant", final_text, task_id,

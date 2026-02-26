@@ -10,8 +10,19 @@ import {
 } from "@/lib/team";
 import type { RouteContext } from "@/lib/api-handler";
 
-const roleSchema = z.object({
-  role: z.enum(["admin", "member"]),
+const updateSchema = z.object({
+  displayName: z.string().min(1).optional(),
+  description: z.string().optional(),
+  role: z.enum(["admin", "member"]).optional(),
+  pageAccess: z.enum(["all", "selected"]).optional(),
+  allowedNodeIds: z.array(z.string().uuid()).optional(),
+  canWrite: z.boolean().optional(),
+  systemPrompt: z.string().optional(),
+  model: z.string().optional(),
+  toolIds: z.array(z.string().uuid()).optional(),
+  trigger: z.enum(["manual", "schedule", "event"]).optional(),
+  triggerConfig: z.record(z.unknown()).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const PATCH = h.mutation(
@@ -24,7 +35,7 @@ export const PATCH = h.mutation(
     }
 
     const [target] = await db
-      .select({ id: teamMembers.id, role: teamMembers.role, userId: teamMembers.userId })
+      .select({ id: teamMembers.id, role: teamMembers.role, kind: teamMembers.kind })
       .from(teamMembers)
       .where(
         and(
@@ -38,19 +49,19 @@ export const PATCH = h.mutation(
       throw new Error("Member not found");
     }
 
-    if (isOwner(target.role)) {
+    if (isOwner(target.role) && data.role) {
       throw new Error("Cannot change owner role");
     }
 
     const [updated] = await db
       .update(teamMembers)
-      .set({ role: data.role })
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(teamMembers.id, targetId))
       .returning();
 
     return updated;
   },
-  { schema: roleSchema },
+  { schema: updateSchema },
 );
 
 export const DELETE = h.mutation(async (_data, userId, _req, ctx: RouteContext) => {

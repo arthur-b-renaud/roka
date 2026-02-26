@@ -27,6 +27,8 @@ WORKFLOW_HANDLERS = {
 }
 
 STALE_TASK_TIMEOUT_MINUTES = 10
+HEARTBEAT_INTERVAL_SECONDS = 30
+STALE_CHECK_CYCLE_COUNT = 12
 
 
 async def _reclaim_stale_tasks() -> None:
@@ -40,9 +42,9 @@ async def _reclaim_stale_tasks() -> None:
                 completed_at = now(),
                 updated_at = now()
             WHERE status = 'running'
-              AND heartbeat_at < now() - interval '%s minutes'
+              AND heartbeat_at < now() - make_interval(mins => $1)
             RETURNING id
-        """ % STALE_TASK_TIMEOUT_MINUTES)
+        """, STALE_TASK_TIMEOUT_MINUTES)
         if rows:
             logger.warning("Reclaimed %d stale running tasks", len(rows))
     except Exception as e:
@@ -66,7 +68,7 @@ async def _claim_and_run_one() -> bool:
             LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, workflow, input, node_id, owner_id, conversation_id, agent_definition_id
+        RETURNING id, workflow, input, node_id, owner_id, conversation_id, member_id
     """)
 
     if row is None:
@@ -78,13 +80,12 @@ async def _claim_and_run_one() -> bool:
     node_id = row["node_id"]
     owner_id = row["owner_id"]
     conversation_id = row["conversation_id"]
-    agent_def_id = row["agent_definition_id"]
+    member_id = row["member_id"]
 
-    # Inject conversation_id and agent_definition_id into task input
     if conversation_id:
         task_input["conversation_id"] = str(conversation_id)
-    if agent_def_id:
-        task_input["agent_definition_id"] = str(agent_def_id)
+    if member_id:
+        task_input["member_id"] = str(member_id)
 
     logger.info("Running task %s (workflow=%s)", task_id, workflow)
 
@@ -100,7 +101,7 @@ async def _claim_and_run_one() -> bool:
     try:
         async def heartbeat_loop() -> None:
             while True:
-                await asyncio.sleep(30)
+                await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
                 await pool.execute(
                     "UPDATE agent_tasks SET heartbeat_at = now() WHERE id = $1",
                     task_id,
@@ -194,7 +195,7 @@ async def poll_agent_tasks() -> None:
                 pass
 
             stale_check_counter += 1
-            if stale_check_counter >= 12:
+            if stale_check_counter >= STALE_CHECK_CYCLE_COUNT:
                 stale_check_counter = 0
                 await _reclaim_stale_tasks()
 

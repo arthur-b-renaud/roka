@@ -1,16 +1,25 @@
 import { db } from "@/lib/db";
-import { agentDefinitions } from "@/lib/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { teamMembers } from "@/lib/db/schema";
+import { eq, and, desc } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
 import { z } from "zod";
+import { ensureTeamMembership, isAdminOrOwner } from "@/lib/team";
 
-// GET /api/agent-definitions
+// Compatibility layer: agent definitions are now AI team members.
+// GET /api/agent-definitions — returns AI team members
 export const GET = h.GET(async (userId) => {
+  const membership = await ensureTeamMembership(userId);
+
   return db
     .select()
-    .from(agentDefinitions)
-    .where(eq(agentDefinitions.ownerId, userId))
-    .orderBy(desc(agentDefinitions.updatedAt));
+    .from(teamMembers)
+    .where(
+      and(
+        eq(teamMembers.teamId, membership.teamId),
+        eq(teamMembers.kind, "ai"),
+      ),
+    )
+    .orderBy(desc(teamMembers.updatedAt));
 });
 
 const createSchema = z.object({
@@ -23,13 +32,15 @@ const createSchema = z.object({
   triggerConfig: z.record(z.unknown()).default({}),
 });
 
-// POST /api/agent-definitions -- create agent
 export const POST = h.mutation(async (data, userId) => {
-  const [agent] = await db
-    .insert(agentDefinitions)
+  const membership = await ensureTeamMembership(userId);
+
+  const [member] = await db
+    .insert(teamMembers)
     .values({
-      ownerId: userId,
-      name: data.name,
+      teamId: membership.teamId,
+      kind: "ai",
+      displayName: data.name,
       description: data.description,
       systemPrompt: data.systemPrompt,
       model: data.model,
@@ -38,40 +49,27 @@ export const POST = h.mutation(async (data, userId) => {
       triggerConfig: data.triggerConfig,
     })
     .returning();
-  return agent;
+  return member;
 }, { schema: createSchema });
-
-const updateSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1).optional(),
-  description: z.string().optional(),
-  systemPrompt: z.string().optional(),
-  model: z.string().optional(),
-  toolIds: z.array(z.string().uuid()).optional(),
-  trigger: z.enum(["manual", "schedule", "event"]).optional(),
-  triggerConfig: z.record(z.unknown()).optional(),
-  isActive: z.boolean().optional(),
-});
-
-// PATCH /api/agent-definitions -- update agent
-export const PATCH = h.mutation(async (data, userId) => {
-  const { id, ...updates } = data;
-  const [agent] = await db
-    .update(agentDefinitions)
-    .set(updates)
-    .where(eq(agentDefinitions.id, id))
-    .returning();
-  return agent;
-}, { schema: updateSchema });
 
 const deleteSchema = z.object({
   id: z.string().uuid(),
 });
 
-// DELETE /api/agent-definitions
 export const DELETE = h.mutation(async (data, userId) => {
+  const membership = await ensureTeamMembership(userId);
+  if (!isAdminOrOwner(membership.role)) {
+    throw new Error("Forbidden");
+  }
+
   await db
-    .delete(agentDefinitions)
-    .where(eq(agentDefinitions.id, data.id));
+    .delete(teamMembers)
+    .where(
+      and(
+        eq(teamMembers.id, data.id),
+        eq(teamMembers.teamId, membership.teamId),
+        eq(teamMembers.kind, "ai"),
+      ),
+    );
   return { ok: true };
 }, { schema: deleteSchema });

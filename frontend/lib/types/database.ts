@@ -5,6 +5,7 @@ import { z } from "zod";
 // ──────────────────────────────────────────────
 
 export const nodeTypeSchema = z.enum(["page", "database", "database_row", "image"]);
+export const pageVisibilitySchema = z.enum(["private", "team", "shared", "published"]);
 
 export const dbNodeSchema = z.object({
   id: z.string().uuid(),
@@ -18,6 +19,10 @@ export const dbNodeSchema = z.object({
   properties: z.record(z.unknown()),
   isPinned: z.boolean(),
   sortOrder: z.number().int().min(0),
+  visibility: pageVisibilitySchema.default("private"),
+  shareToken: z.string().nullable().optional(),
+  publishedSlug: z.string().nullable().optional(),
+  publishedAt: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   searchText: z.string(),
@@ -36,7 +41,7 @@ export const dbAgentTaskSchema = z.object({
   error: z.string().nullable(),
   nodeId: z.string().uuid().nullable(),
   conversationId: z.string().uuid().nullable().optional(),
-  agentDefinitionId: z.string().uuid().nullable().optional(),
+  memberId: z.string().uuid().nullable().optional(),
   startedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
   createdAt: z.string(),

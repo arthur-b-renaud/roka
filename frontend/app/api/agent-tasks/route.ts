@@ -22,7 +22,7 @@ const createTaskSchema = z.object({
   nodeId: z.string().uuid().nullable().optional(),
   input: z.record(z.unknown()).default({}),
   conversationId: z.string().uuid().nullable().optional(),
-  agentDefinitionId: z.string().uuid().nullable().optional(),
+  memberId: z.string().uuid().nullable().optional(),
 });
 
 // POST /api/agent-tasks
@@ -37,7 +37,7 @@ export const POST = h.mutation(async (data, userId) => {
       workflow: data.workflow,
       nodeId: data.nodeId ?? null,
       conversationId: data.conversationId ?? null,
-      agentDefinitionId: data.agentDefinitionId ?? null,
+      memberId: data.memberId ?? null,
       input,
     })
     .returning();

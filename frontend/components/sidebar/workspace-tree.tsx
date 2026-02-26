@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState, useRef, useEffect } from "react";
+import { memo, useCallback, useState, useRef, useEffect, createContext, useContext } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
@@ -54,8 +54,10 @@ import {
   Trash2,
   ExternalLink,
   PanelRightOpen,
+  Globe,
+  Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, copyToClipboard } from "@/lib/utils";
 import { nodeUrl } from "@/lib/slug";
 import type { DbNode } from "@/lib/types/database";
 import { formatDistanceToNow } from "date-fns";
@@ -67,6 +69,17 @@ const nodeIcons: Record<string, React.ElementType> = {
   database_row: Table2,
   image: Image,
 };
+
+function VisibilityBadge({ visibility }: { visibility?: string }) {
+  if (!visibility || visibility === "private") return null;
+  if (visibility === "team")
+    return <Users className="h-3 w-3 shrink-0 text-blue-500" aria-label="Shared with team" />;
+  if (visibility === "shared")
+    return <Link2 className="h-3 w-3 shrink-0 text-orange-500" aria-label="Share link active" />;
+  if (visibility === "published")
+    return <Globe className="h-3 w-3 shrink-0 text-green-500" aria-label="Published" />;
+  return null;
+}
 
 // Shared menu items renderer
 interface MenuParts {
@@ -233,7 +246,8 @@ function MoveToDialog({
   );
 }
 
-// Public tree
+const RootPagesContext = createContext<DbNode[]>([]);
+
 interface WorkspaceTreeProps {
   pages: DbNode[];
 }
@@ -248,13 +262,15 @@ export function WorkspaceTree({ pages }: WorkspaceTreeProps) {
   }
 
   return (
-    <TooltipProvider delayDuration={400}>
-      <div role="tree" className="space-y-0.5">
-        {pages.map((page) => (
-          <TreeNode key={page.id} node={page} depth={0} allRootPages={pages} />
-        ))}
-      </div>
-    </TooltipProvider>
+    <RootPagesContext.Provider value={pages}>
+      <TooltipProvider delayDuration={400}>
+        <div role="tree" className="space-y-0.5">
+          {pages.map((page) => (
+            <TreeNode key={page.id} node={page} depth={0} />
+          ))}
+        </div>
+      </TooltipProvider>
+    </RootPagesContext.Provider>
   );
 }
 
@@ -262,12 +278,11 @@ export function WorkspaceTree({ pages }: WorkspaceTreeProps) {
 const TreeNode = memo(function TreeNode({
   node,
   depth,
-  allRootPages,
 }: {
   node: DbNode;
   depth: number;
-  allRootPages: DbNode[];
 }) {
+  const allRootPages = useContext(RootPagesContext);
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
@@ -323,10 +338,10 @@ const TreeNode = memo(function TreeNode({
     toast(node.isPinned ? "Removed from favorites" : "Added to favorites");
   }, [node.id, node.isPinned, queryClient, toast]);
 
-  const handleCopyLink = useCallback(() => {
+  const handleCopyLink = useCallback(async () => {
     const url = `${window.location.origin}${nodeLink}`;
-    navigator.clipboard.writeText(url);
-    toast("Link copied to clipboard");
+    const ok = await copyToClipboard(url);
+    toast(ok ? "Link copied to clipboard" : "Failed to copy link");
   }, [nodeLink, toast]);
 
   const handleDuplicate = useCallback(async () => {
@@ -473,9 +488,10 @@ const TreeNode = memo(function TreeNode({
               <button
                 onClick={navigate}
                 onDoubleClick={(e) => { e.preventDefault(); startRename(); }}
-                className="flex flex-1 items-center truncate"
+                className="flex flex-1 items-center gap-1 truncate"
               >
                 <span className="truncate">{node.title || "Untitled"}</span>
+                <VisibilityBadge visibility={(node as DbNode & { visibility?: string }).visibility} />
               </button>
             )}
 
@@ -536,7 +552,7 @@ const TreeNode = memo(function TreeNode({
       {expanded && children.length > 0 && (
         <div role="group">
           {children.map((child) => (
-            <TreeNode key={child.id} node={child} depth={depth + 1} allRootPages={allRootPages} />
+            <TreeNode key={child.id} node={child} depth={depth + 1} />
           ))}
         </div>
       )}

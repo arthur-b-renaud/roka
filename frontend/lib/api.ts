@@ -1,5 +1,5 @@
 /**
- * Client-side API layer -- typed fetch wrappers for all API routes.
+ * Client-side API layer — typed fetch wrappers for all API routes.
  */
 
 async function handleResponse(res: Response) {
@@ -33,6 +33,19 @@ export const api = {
       p.set("fields", opts.fields ?? "meta");
       return fetch(`/api/nodes/${id}/history?${p}`).then(handleResponse);
     },
+    sharing: {
+      get: (id: string) =>
+        fetch(`/api/nodes/${id}/sharing`).then(handleResponse),
+      update: (id: string, data: { visibility: string; publishedSlug?: string }) =>
+        fetch(`/api/nodes/${id}/sharing`, { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
+    },
+  },
+
+  publicPages: {
+    getByShareToken: (token: string) =>
+      fetch(`/api/public/share/${token}`).then(handleResponse),
+    getByPublishedSlug: (slug: string) =>
+      fetch(`/api/public/published/${slug}`).then(handleResponse),
   },
 
   databaseDefinitions: {
@@ -69,7 +82,7 @@ export const api = {
       nodeId?: string | null;
       input?: Record<string, unknown>;
       conversationId?: string | null;
-      agentDefinitionId?: string | null;
+      memberId?: string | null;
     }) =>
       fetch("/api/agent-tasks", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
   },
@@ -120,7 +133,7 @@ export const api = {
   conversations: {
     list: (limit = 20) =>
       fetch(`/api/conversations?limit=${limit}`).then(handleResponse),
-    create: (data: { title?: string; agentDefinitionId?: string | null }) =>
+    create: (data: { title?: string; memberId?: string | null }) =>
       fetch("/api/conversations", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     messages: (conversationId: string) =>
       fetch(`/api/conversations/${conversationId}/messages`).then(handleResponse),
@@ -128,25 +141,12 @@ export const api = {
       conversationId: string,
       data: {
         content: string;
-        agentDefinitionId?: string | null;
+        memberId?: string | null;
         nodeId?: string | null;
         minimalMode?: boolean;
       }
     ) =>
       fetch(`/api/conversations/${conversationId}/messages`, { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
-  },
-
-  // ── Agent Definitions ────────────────────────────────
-
-  agentDefinitions: {
-    list: () =>
-      fetch("/api/agent-definitions").then(handleResponse),
-    create: (data: Record<string, unknown>) =>
-      fetch("/api/agent-definitions", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
-    update: (data: Record<string, unknown>) =>
-      fetch("/api/agent-definitions", { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
-    delete: (id: string) =>
-      fetch("/api/agent-definitions", { method: "DELETE", headers: jsonHeaders, body: JSON.stringify({ id }) }).then(handleResponse),
   },
 
   // ── Teams ───────────────────────────────────────────
@@ -157,13 +157,14 @@ export const api = {
       fetch("/api/teams", { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
   },
 
+  // ── Team Members (unified: humans + AI) ─────────────
   teamMembers: {
     list: () =>
       fetch("/api/team-members").then(handleResponse),
-    invite: (email: string) =>
-      fetch("/api/team-members", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ email }) }).then(handleResponse),
-    updateRole: (id: string, role: string) =>
-      fetch(`/api/team-members/${id}`, { method: "PATCH", headers: jsonHeaders, body: JSON.stringify({ role }) }).then(handleResponse),
+    create: (data: Record<string, unknown>) =>
+      fetch("/api/team-members", { method: "POST", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
+    update: (id: string, data: Record<string, unknown>) =>
+      fetch(`/api/team-members/${id}`, { method: "PATCH", headers: jsonHeaders, body: JSON.stringify(data) }).then(handleResponse),
     remove: (id: string) =>
       fetch(`/api/team-members/${id}`, { method: "DELETE" }).then(handleResponse),
   },
@@ -183,8 +184,8 @@ export const api = {
       fetch("/api/chat-channels").then(handleResponse),
     create: (name: string) =>
       fetch("/api/chat-channels", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ name }) }).then(handleResponse),
-    createDirect: (otherUserId: string) =>
-      fetch("/api/chat-channels/direct", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ otherUserId }) }).then(handleResponse),
+    createDirect: (otherMemberId: string) =>
+      fetch("/api/chat-channels/direct", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ otherMemberId }) }).then(handleResponse),
     messages: (channelId: string, limit = 100, cursor?: string) => {
       const params = new URLSearchParams({ limit: String(limit) });
       if (cursor) params.set("cursor", cursor);
@@ -198,33 +199,33 @@ export const api = {
       }).then(handleResponse),
     members: (channelId: string) =>
       fetch(`/api/chat-channels/${channelId}/members`).then(handleResponse),
-    addMember: (channelId: string, userId: string) =>
+    addMember: (channelId: string, memberId: string) =>
       fetch(`/api/chat-channels/${channelId}/members`, {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ memberId }),
       }).then(handleResponse),
-    removeMember: (channelId: string, userId: string) =>
+    removeMember: (channelId: string, memberId: string) =>
       fetch(`/api/chat-channels/${channelId}/members`, {
         method: "DELETE",
         headers: jsonHeaders,
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ memberId }),
       }).then(handleResponse),
     delete: (channelId: string) =>
       fetch(`/api/chat-channels/${channelId}`, { method: "DELETE" }).then(handleResponse),
     agents: (channelId: string) =>
       fetch(`/api/chat-channels/${channelId}/agents`).then(handleResponse),
-    addAgent: (channelId: string, agentDefinitionId: string) =>
+    addAgent: (channelId: string, memberId: string) =>
       fetch(`/api/chat-channels/${channelId}/agents`, {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ agentDefinitionId }),
+        body: JSON.stringify({ memberId }),
       }).then(handleResponse),
-    removeAgent: (channelId: string, agentDefinitionId: string) =>
+    removeAgent: (channelId: string, memberId: string) =>
       fetch(`/api/chat-channels/${channelId}/agents`, {
         method: "DELETE",
         headers: jsonHeaders,
-        body: JSON.stringify({ agentDefinitionId }),
+        body: JSON.stringify({ memberId }),
       }).then(handleResponse),
   },
 };

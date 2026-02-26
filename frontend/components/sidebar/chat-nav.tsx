@@ -33,7 +33,7 @@ export function ChatNav() {
   const createDirect = useCreateWorkspaceDirect();
   const deleteChannel = useDeleteWorkspaceChannel();
 
-  const dmOptions = teamMembers.filter((m) => m.userId !== userId);
+  const dmOptions = teamMembers.filter((m) => m.kind === "human" && m.userId !== userId);
 
   const handleCreateChannel = useCallback(() => {
     const value = newChannelName.trim();
@@ -47,9 +47,9 @@ export function ChatNav() {
   }, [newChannelName, createChannel, router]);
 
   const handleCreateDirect = useCallback(
-    (targetUserId: string) => {
-      if (!targetUserId) return;
-      createDirect.mutate(targetUserId, {
+    (targetMemberId: string) => {
+      if (!targetMemberId) return;
+      createDirect.mutate(targetMemberId, {
         onSuccess: (channel) => {
           if (channel?.id) router.push(`/workspace/chat/${channel.id}`);
         },
@@ -179,11 +179,11 @@ export function ChatNav() {
               <DropdownMenuContent align="start" sideOffset={4}>
                 {dmOptions.map((m) => (
                   <DropdownMenuItem
-                    key={m.userId}
-                    onClick={() => handleCreateDirect(m.userId)}
+                    key={m.id}
+                    onClick={() => handleCreateDirect(m.id)}
                   >
                     <Users className="mr-2 h-3.5 w-3.5" />
-                    {m.name || m.email}
+                    {m.displayName || m.email}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

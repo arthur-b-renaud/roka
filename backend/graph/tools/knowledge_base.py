@@ -83,29 +83,26 @@ async def find_entities(
     """
     pool = get_pool()
 
-    conditions = []
+    conditions: list[str] = []
     args: list[Any] = []
-    idx = 1
 
     if name:
-        conditions.append(f"display_name ILIKE '%' || ${idx} || '%'")
         args.append(name)
-        idx += 1
+        conditions.append(f"display_name ILIKE '%' || ${len(args)} || '%'")
 
     if entity_type and entity_type in ("person", "org", "bot"):
-        conditions.append(f"type = ${idx}::entity_type")
         args.append(entity_type)
-        idx += 1
+        conditions.append(f"type = ${len(args)}::entity_type")
 
-    where = " AND ".join(conditions) if conditions else "TRUE"
     args.append(limit)
+    where = " AND ".join(conditions) if conditions else "TRUE"
 
     rows = await pool.fetch(f"""
         SELECT id, display_name, type::text, resolution_keys, metadata
         FROM entities
         WHERE {where}
         ORDER BY created_at DESC
-        LIMIT ${idx}
+        LIMIT ${len(args)}
     """, *args)
 
     if not rows:
@@ -140,22 +137,19 @@ async def get_communications(
     """
     pool = get_pool()
 
-    conditions = []
+    conditions: list[str] = []
     args: list[Any] = []
-    idx = 1
 
     if entity_id:
-        conditions.append(f"from_entity_id = ${idx}")
         args.append(uuid.UUID(entity_id))
-        idx += 1
+        conditions.append(f"c.from_entity_id = ${len(args)}")
 
     if channel and channel in ("email", "slack", "sms", "webhook", "other"):
-        conditions.append(f"channel = ${idx}::comm_channel")
         args.append(channel)
-        idx += 1
+        conditions.append(f"c.channel = ${len(args)}::comm_channel")
 
-    where = " AND ".join(conditions) if conditions else "TRUE"
     args.append(limit)
+    where = " AND ".join(conditions) if conditions else "TRUE"
 
     rows = await pool.fetch(f"""
         SELECT c.id, c.channel::text, c.direction::text, c.subject,
@@ -165,7 +159,7 @@ async def get_communications(
         LEFT JOIN entities e ON e.id = c.from_entity_id
         WHERE {where}
         ORDER BY c.timestamp DESC
-        LIMIT ${idx}
+        LIMIT ${len(args)}
     """, *args)
 
     if not rows:

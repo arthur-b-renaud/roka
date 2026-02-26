@@ -1,5 +1,5 @@
 /**
- * Drizzle ORM schema — mirrors database/init.sql.
+ * Drizzle ORM schema — mirrors database/init.sql + migrations.
  * Auth.js tables (users, accounts, sessions, verification_tokens) added here.
  */
 
@@ -25,8 +25,11 @@ export const entityTypeEnum = pgEnum("entity_type", ["person", "org", "bot"]);
 export const commChannelEnum = pgEnum("comm_channel", ["email", "slack", "sms", "webhook", "other"]);
 export const commDirectionEnum = pgEnum("comm_direction", ["inbound", "outbound"]);
 export const nodeTypeEnum = pgEnum("node_type", ["page", "database", "database_row", "image"]);
+export const pageVisibilityEnum = pgEnum("page_visibility", ["private", "team", "shared", "published"]);
 export const agentTaskStatusEnum = pgEnum("agent_task_status", ["pending", "running", "completed", "failed", "cancelled"]);
 export const workflowTypeEnum = pgEnum("workflow_type", ["summarize", "triage", "agent", "custom"]);
+export const memberKindEnum = pgEnum("member_kind", ["human", "ai"]);
+export const pageAccessLevelEnum = pgEnum("page_access_level", ["all", "selected"]);
 
 // ── Auth.js Tables ─────────────────────────────────────
 
@@ -119,6 +122,10 @@ export const nodes = pgTable("nodes", {
   properties: jsonb("properties").notNull().default({}),
   isPinned: boolean("is_pinned").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
+  visibility: pageVisibilityEnum("visibility").notNull().default("private"),
+  shareToken: text("share_token").unique(),
+  publishedSlug: text("published_slug").unique(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   searchText: text("search_text").notNull().default(""),
@@ -174,7 +181,7 @@ export const agentTasks = pgTable("agent_tasks", {
   error: text("error"),
   nodeId: uuid("node_id").references(() => nodes.id, { onDelete: "set null" }),
   conversationId: uuid("conversation_id").references((): any => conversations.id, { onDelete: "set null" }),
-  agentDefinitionId: uuid("agent_definition_id").references((): any => agentDefinitions.id, { onDelete: "set null" }),
+  memberId: uuid("member_id").references((): any => teamMembers.id, { onDelete: "set null" }),
   startedAt: timestamp("started_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
@@ -260,7 +267,7 @@ export const conversations = pgTable("conversations", {
   id: uuid("id").defaultRandom().primaryKey(),
   ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   title: text("title").notNull().default("New conversation"),
-  agentDefinitionId: uuid("agent_definition_id").references((): any => agentDefinitions.id, { onDelete: "set null" }),
+  memberId: uuid("member_id").references((): any => teamMembers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -275,24 +282,9 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-// ── Zone H: Agent Definitions ──────────────────────────
+// ── Zone H: Trigger Type Enum (used by team_members AI config) ──
 
 export const triggerTypeEnum = pgEnum("trigger_type", ["manual", "schedule", "event"]);
-
-export const agentDefinitions = pgTable("agent_definitions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  ownerId: uuid("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description").notNull().default(""),
-  systemPrompt: text("system_prompt").notNull().default(""),
-  model: text("model").notNull().default(""),
-  toolIds: text("tool_ids").array(), // UUID[] stored as text array in drizzle
-  trigger: triggerTypeEnum("trigger").notNull().default("manual"),
-  triggerConfig: jsonb("trigger_config").notNull().default({}),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
 
 // ── Zone J: Teams & Internal Chat ──────────────────────
 
@@ -311,9 +303,25 @@ export const teamMembers = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    kind: memberKindEnum("kind").notNull().default("human"),
+    displayName: text("display_name").notNull().default(""),
+    avatarUrl: text("avatar_url"),
+    description: text("description").notNull().default(""),
+    // Permissions
     role: teamRoleEnum("role").notNull().default("member"),
+    pageAccess: pageAccessLevelEnum("page_access").notNull().default("all"),
+    allowedNodeIds: text("allowed_node_ids").array().notNull().default([]),
+    canWrite: boolean("can_write").notNull().default(true),
+    // AI config (inert defaults for humans)
+    systemPrompt: text("system_prompt").notNull().default(""),
+    model: text("model").notNull().default(""),
+    toolIds: text("tool_ids").array().notNull().default([]),
+    trigger: triggerTypeEnum("trigger").notNull().default("manual"),
+    triggerConfig: jsonb("trigger_config").notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
     teamUser: uniqueIndex("uq_team_members_team_user").on(table.teamId, table.userId),
@@ -344,36 +352,22 @@ export const chatChannelMembers = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    memberId: uuid("member_id").references(() => teamMembers.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    uqChannelUser: uniqueIndex("uq_chat_channel_members_channel_user").on(table.channelId, table.userId),
+    uqChannelMember: uniqueIndex("uq_chat_channel_members_channel_member").on(table.channelId, table.memberId),
   }),
 );
 
 export const chatChannelMessages = pgTable("chat_channel_messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   content: text("content").notNull().default(""),
-  agentDefinitionId: uuid("agent_definition_id").references(() => agentDefinitions.id, { onDelete: "set null" }),
+  authorMemberId: uuid("author_member_id").references(() => teamMembers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const chatChannelAgents = pgTable(
-  "chat_channel_agents",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    channelId: uuid("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
-    agentDefinitionId: uuid("agent_definition_id").notNull().references(() => agentDefinitions.id, { onDelete: "cascade" }),
-    addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  },
-  (table) => ({
-    uqChannelAgent: uniqueIndex("uq_chat_channel_agents_channel_agent").on(table.channelId, table.agentDefinitionId),
-  }),
-);
 
 // ── Zone I: Telemetry ──────────────────────────────────
 
@@ -404,7 +398,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   credentials: many(credentials),
   conversations: many(conversations),
-  agentDefinitions: many(agentDefinitions),
   teamMemberships: many(teamMembers),
   teamMessages: many(teamMessages),
 }));
@@ -440,7 +433,7 @@ export const agentTasksRelations = relations(agentTasks, ({ one }) => ({
   owner: one(users, { fields: [agentTasks.ownerId], references: [users.id] }),
   node: one(nodes, { fields: [agentTasks.nodeId], references: [nodes.id] }),
   conversation: one(conversations, { fields: [agentTasks.conversationId], references: [conversations.id] }),
-  agentDefinition: one(agentDefinitions, { fields: [agentTasks.agentDefinitionId], references: [agentDefinitions.id] }),
+  member: one(teamMembers, { fields: [agentTasks.memberId], references: [teamMembers.id] }),
 }));
 
 export const credentialsRelations = relations(credentials, ({ one }) => ({
@@ -449,7 +442,7 @@ export const credentialsRelations = relations(credentials, ({ one }) => ({
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
   owner: one(users, { fields: [conversations.ownerId], references: [users.id] }),
-  agentDefinition: one(agentDefinitions, { fields: [conversations.agentDefinitionId], references: [agentDefinitions.id] }),
+  member: one(teamMembers, { fields: [conversations.memberId], references: [teamMembers.id] }),
   messages: many(messages),
 }));
 
@@ -458,9 +451,6 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   agentTask: one(agentTasks, { fields: [messages.taskId], references: [agentTasks.id] }),
 }));
 
-export const agentDefinitionsRelations = relations(agentDefinitions, ({ one }) => ({
-  owner: one(users, { fields: [agentDefinitions.ownerId], references: [users.id] }),
-}));
 
 export const toolDefinitionsRelations = relations(toolDefinitions, ({ one }) => ({
   owner: one(users, { fields: [toolDefinitions.ownerId], references: [users.id] }),
@@ -475,9 +465,11 @@ export const teamsRelations = relations(teams, ({ many }) => ({
   chatChannels: many(chatChannels),
 }));
 
-export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+export const teamMembersRelations = relations(teamMembers, ({ one, many }) => ({
   team: one(teams, { fields: [teamMembers.teamId], references: [teams.id] }),
   user: one(users, { fields: [teamMembers.userId], references: [users.id] }),
+  conversations: many(conversations),
+  agentTasks: many(agentTasks),
 }));
 
 export const teamMessagesRelations = relations(teamMessages, ({ one }) => ({
@@ -489,23 +481,15 @@ export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => 
   team: one(teams, { fields: [chatChannels.teamId], references: [teams.id] }),
   members: many(chatChannelMembers),
   messages: many(chatChannelMessages),
-  agents: many(chatChannelAgents),
   creator: one(users, { fields: [chatChannels.createdBy], references: [users.id] }),
 }));
 
 export const chatChannelMembersRelations = relations(chatChannelMembers, ({ one }) => ({
   channel: one(chatChannels, { fields: [chatChannelMembers.channelId], references: [chatChannels.id] }),
-  user: one(users, { fields: [chatChannelMembers.userId], references: [users.id] }),
+  member: one(teamMembers, { fields: [chatChannelMembers.memberId], references: [teamMembers.id] }),
 }));
 
 export const chatChannelMessagesRelations = relations(chatChannelMessages, ({ one }) => ({
   channel: one(chatChannels, { fields: [chatChannelMessages.channelId], references: [chatChannels.id] }),
-  user: one(users, { fields: [chatChannelMessages.userId], references: [users.id] }),
-  agentDefinition: one(agentDefinitions, { fields: [chatChannelMessages.agentDefinitionId], references: [agentDefinitions.id] }),
-}));
-
-export const chatChannelAgentsRelations = relations(chatChannelAgents, ({ one }) => ({
-  channel: one(chatChannels, { fields: [chatChannelAgents.channelId], references: [chatChannels.id] }),
-  agentDefinition: one(agentDefinitions, { fields: [chatChannelAgents.agentDefinitionId], references: [agentDefinitions.id] }),
-  addedByUser: one(users, { fields: [chatChannelAgents.addedBy], references: [users.id] }),
+  author: one(teamMembers, { fields: [chatChannelMessages.authorMemberId], references: [teamMembers.id] }),
 }));

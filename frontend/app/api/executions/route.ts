@@ -2,11 +2,11 @@ import { db } from "@/lib/db";
 import { agentTasks } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import * as h from "@/lib/api-handler";
+import { parsePagination } from "@/lib/api-handler";
 
 // GET /api/executions?limit=50
 export const GET = h.GET(async (userId, req) => {
-  const url = new URL(req.url);
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 200);
+  const { limit } = parsePagination(req);
 
   const rows = await db
     .select({
@@ -17,7 +17,7 @@ export const GET = h.GET(async (userId, req) => {
       output: agentTasks.output,
       error: agentTasks.error,
       traceLog: agentTasks.traceLog,
-      agentDefinitionId: agentTasks.agentDefinitionId,
+      memberId: agentTasks.memberId,
       startedAt: agentTasks.startedAt,
       completedAt: agentTasks.completedAt,
       createdAt: agentTasks.createdAt,

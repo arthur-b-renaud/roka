@@ -19,21 +19,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ShareDialog } from "@/components/sharing/share-dialog";
 import { useConvertToDatabase } from "@/lib/hooks/use-create-database";
-import { Smile, MoreHorizontal, Database, ImagePlus, Clock } from "lucide-react";
+import { Smile, MoreHorizontal, Database, ImagePlus, Clock, Share2 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
 interface PageHeaderProps {
   node: DbNode;
   onOpenHistory?: () => void;
+  readOnly?: boolean;
 }
 
-export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
+export function PageHeader({ node, onOpenHistory, readOnly }: PageHeaderProps) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState(node.title);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const convertToDatabase = useConvertToDatabase();
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     setTitle(node.title);
@@ -114,17 +117,19 @@ export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
             alt=""
             className="h-full w-full object-cover"
           />
-          <button
-            type="button"
-            className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity hover:opacity-100"
-            onClick={() => coverInputRef.current?.click()}
-            aria-label="Change cover"
-          >
-            <ImagePlus className="h-4 w-4 text-white" />
-            <span className="text-sm text-white">Change cover</span>
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity hover:opacity-100"
+              onClick={() => coverInputRef.current?.click()}
+              aria-label="Change cover"
+            >
+              <ImagePlus className="h-4 w-4 text-white" />
+              <span className="text-sm text-white">Change cover</span>
+            </button>
+          )}
         </div>
-      ) : (
+      ) : !readOnly ? (
         <button
           type="button"
           className="group/cover flex w-full items-center justify-center gap-1 rounded-lg border border-dashed py-8 text-sm text-muted-foreground opacity-60 transition-opacity hover:border-muted-foreground/30 hover:opacity-100 [div:hover>&]:opacity-100"
@@ -134,9 +139,9 @@ export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
           <ImagePlus className="h-4 w-4" />
           Add cover
         </button>
-      )}
+      ) : null}
 
-      {!node.icon && (
+      {!readOnly && !node.icon && (
         <EmojiPicker value={node.icon} onChange={handleIconChange}>
           <button className="group/icon flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:bg-accent/60 hover:opacity-100 focus:opacity-100 [div:hover>&]:opacity-100">
             <Smile className="h-3.5 w-3.5" />
@@ -146,7 +151,7 @@ export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
       )}
 
       <div className="flex items-center gap-3">
-        {node.icon && (
+        {node.icon && !readOnly ? (
           <EmojiPicker value={node.icon} onChange={handleIconChange}>
             <button
               className="text-3xl transition-transform hover:scale-110"
@@ -155,39 +160,67 @@ export function PageHeader({ node, onOpenHistory }: PageHeaderProps) {
               {node.icon}
             </button>
           </EmojiPicker>
+        ) : node.icon ? (
+          <span className="text-3xl">{node.icon}</span>
+        ) : null}
+        {readOnly ? (
+          <h1 className="w-full text-3xl font-bold leading-snug tracking-tight">
+            {title || "Untitled"}
+          </h1>
+        ) : (
+          <input
+            value={title}
+            onChange={handleChange}
+            aria-label="Page title"
+            className="w-full bg-transparent text-3xl font-bold leading-snug tracking-tight outline-none placeholder:text-muted-foreground/50"
+            placeholder="Untitled"
+          />
         )}
-        <input
-          value={title}
-          onChange={handleChange}
-          aria-label="Page title"
-          className="w-full bg-transparent text-3xl font-bold leading-snug tracking-tight outline-none placeholder:text-muted-foreground/50"
-          placeholder="Untitled"
-        />
-        {node.type === "page" && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent/60 hover:text-foreground [div:hover>&]:opacity-100"
-                aria-label="Page options"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4}>
-              {onOpenHistory && (
-                <DropdownMenuItem onClick={onOpenHistory}>
-                  <Clock className="mr-2 h-4 w-4" />
-                  Page history
+        {!readOnly && node.type === "page" && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 gap-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground [div:hover>&]:opacity-100"
+              onClick={() => setShareOpen(true)}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent/60 hover:text-foreground [div:hover>&]:opacity-100"
+                  aria-label="Page options"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={4}>
+                {onOpenHistory && (
+                  <DropdownMenuItem onClick={onOpenHistory}>
+                    <Clock className="mr-2 h-4 w-4" />
+                    Page history
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={handleConvertClick}>
+                  <Database className="mr-2 h-4 w-4" />
+                  Convert to Database
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={handleConvertClick}>
-                <Database className="mr-2 h-4 w-4" />
-                Convert to Database
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
         )}
       </div>
+
+      {!readOnly && (
+        <ShareDialog
+          nodeId={node.id}
+          nodeTitle={node.title}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+        />
+      )}
 
       <Dialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
         <DialogContent>

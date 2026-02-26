@@ -65,7 +65,7 @@ export const dbConversationSchema = z.object({
   id: z.string().uuid(),
   ownerId: z.string().uuid(),
   title: z.string(),
-  agentDefinitionId: z.string().uuid().nullable(),
+  memberId: z.string().uuid().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -84,38 +84,10 @@ export const dbMessageSchema = z.object({
 
 export type DbMessage = z.infer<typeof dbMessageSchema>;
 
-// ── Agent Definition Types ──────────────────────────────
+// Agent definitions are now unified into team_members (kind='ai').
+// See lib/types/team.ts for DbTeamMember which covers both human and AI members.
 
 export const triggerTypeSchema = z.enum(["manual", "schedule", "event"]);
-
-export const dbAgentDefinitionSchema = z.object({
-  id: z.string().uuid(),
-  ownerId: z.string().uuid(),
-  name: z.string(),
-  description: z.string(),
-  systemPrompt: z.string(),
-  model: z.string(),
-  toolIds: z.array(z.string().uuid()),
-  trigger: triggerTypeSchema,
-  triggerConfig: z.record(z.unknown()),
-  isActive: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-});
-
-export type DbAgentDefinition = z.infer<typeof dbAgentDefinitionSchema>;
-
-export const createAgentDefinitionSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  description: z.string().default(""),
-  systemPrompt: z.string().default(""),
-  model: z.string().default(""),
-  toolIds: z.array(z.string().uuid()).default([]),
-  trigger: triggerTypeSchema.default("manual"),
-  triggerConfig: z.record(z.unknown()).default({}),
-});
-
-export type CreateAgentDefinitionInput = z.infer<typeof createAgentDefinitionSchema>;
 
 // ── Telemetry Types ─────────────────────────────────────
 

@@ -29,7 +29,6 @@ export function useMessages(conversationId: string | null) {
     },
     enabled: !!conversationId,
     staleTime: 5_000,
-    // Realtime invalidates on new_message; no polling when Centrifugo is active
   });
 }
 
@@ -37,7 +36,7 @@ export function useCreateConversation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { title?: string; agentDefinitionId?: string | null }) => {
+    mutationFn: async (data: { title?: string; memberId?: string | null }) => {
       const result = await api.conversations.create(data);
       return dbConversationSchema.parse(result);
     },
@@ -53,13 +52,12 @@ export function useSendMessage(conversationId: string) {
   return useMutation({
     mutationFn: async (data: {
       content: string;
-      agentDefinitionId?: string | null;
+      memberId?: string | null;
       nodeId?: string | null;
       minimalMode?: boolean;
     }) => {
       return api.conversations.sendMessage(conversationId, data);
     },
-    // Optimistic: add user message immediately
     onMutate: async ({ content }) => {
       await queryClient.cancelQueries({ queryKey: ["messages", conversationId] });
       const previous = queryClient.getQueryData<DbMessage[]>(["messages", conversationId]);

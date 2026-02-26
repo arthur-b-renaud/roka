@@ -1,31 +1,25 @@
 import * as h from "@/lib/api-handler";
+import { uuidParamSchema, parsePagination } from "@/lib/api-handler";
 import { and, desc, eq, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
-  agentDefinitions,
   agentTasks,
-  chatChannelAgents,
+  chatChannelMembers,
   chatChannelMessages,
-  users,
+  teamMembers,
 } from "@/lib/db/schema";
 import { assertChannelMembership } from "@/lib/chat";
 
-const channelIdParamSchema = z.object({
-  id: z.string().uuid("Invalid channel id"),
-});
-
 export const GET = h.GET(async (userId, req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }
   const channelId = params.data.id;
   await assertChannelMembership(channelId, userId);
 
-  const url = new URL(req.url);
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 100), 200);
-  const cursor = url.searchParams.get("cursor");
+  const { limit, cursor } = parsePagination(req, { limit: 100 });
 
   const conditions = [eq(chatChannelMessages.channelId, channelId)];
   if (cursor) {
@@ -36,18 +30,15 @@ export const GET = h.GET(async (userId, req, ctx) => {
     .select({
       id: chatChannelMessages.id,
       channelId: chatChannelMessages.channelId,
-      userId: chatChannelMessages.userId,
       content: chatChannelMessages.content,
-      agentDefinitionId: chatChannelMessages.agentDefinitionId,
+      authorMemberId: chatChannelMessages.authorMemberId,
       createdAt: chatChannelMessages.createdAt,
-      userName: users.name,
-      userEmail: users.email,
-      userImage: users.image,
-      agentName: agentDefinitions.name,
+      authorName: teamMembers.displayName,
+      authorKind: teamMembers.kind,
+      authorAvatarUrl: teamMembers.avatarUrl,
     })
     .from(chatChannelMessages)
-    .innerJoin(users, eq(users.id, chatChannelMessages.userId))
-    .leftJoin(agentDefinitions, eq(agentDefinitions.id, chatChannelMessages.agentDefinitionId))
+    .leftJoin(teamMembers, eq(teamMembers.id, chatChannelMessages.authorMemberId))
     .where(and(...conditions))
     .orderBy(desc(chatChannelMessages.createdAt))
     .limit(limit);
@@ -61,41 +52,50 @@ const sendSchema = z.object({
 });
 
 export const POST = h.mutation(async (data, userId, _req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }
   const channelId = params.data.id;
   await assertChannelMembership(channelId, userId);
 
+  // Resolve the human member for this user
+  const [humanMember] = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, userId))
+    .limit(1);
+
   const [msg] = await db
     .insert(chatChannelMessages)
     .values({
       channelId,
-      userId,
       content: data.content,
+      authorMemberId: humanMember?.id ?? null,
     })
     .returning();
 
-  // Trigger agents linked to this channel
-  const agents = await db
+  // Trigger AI members linked to this channel
+  const aiMembers = await db
     .select({
-      agentDefinitionId: chatChannelAgents.agentDefinitionId,
-      ownerId: agentDefinitions.ownerId,
+      memberId: chatChannelMembers.memberId,
+      isActive: teamMembers.isActive,
     })
-    .from(chatChannelAgents)
-    .innerJoin(agentDefinitions, and(
-      eq(agentDefinitions.id, chatChannelAgents.agentDefinitionId),
-      eq(agentDefinitions.isActive, true),
+    .from(chatChannelMembers)
+    .innerJoin(teamMembers, and(
+      eq(teamMembers.id, chatChannelMembers.memberId),
+      eq(teamMembers.kind, "ai"),
+      eq(teamMembers.isActive, true),
     ))
-    .where(eq(chatChannelAgents.channelId, channelId));
+    .where(eq(chatChannelMembers.channelId, channelId));
 
-  for (const agent of agents) {
+  for (const ai of aiMembers) {
+    if (!ai.memberId) continue;
     await db.insert(agentTasks).values({
-      ownerId: agent.ownerId,
+      ownerId: userId,
       workflow: "agent",
       status: "pending",
-      agentDefinitionId: agent.agentDefinitionId,
+      memberId: ai.memberId,
       nodeId: data.nodeId ?? null,
       input: {
         prompt: data.content,

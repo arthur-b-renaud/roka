@@ -2,11 +2,27 @@
 
 import json
 import uuid
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.tools import tool
 
 from app.db import get_pool, with_actor
+
+
+async def _fetchrow(query: str, *args: Any, task_id: str | None = None) -> Any:
+    """Execute a query returning a single row, routing through with_actor when task_id is set."""
+    if task_id:
+        async with with_actor("agent", task_id) as conn:
+            return await conn.fetchrow(query, *args)
+    return await get_pool().fetchrow(query, *args)
+
+
+async def _execute(query: str, *args: Any, task_id: str | None = None) -> str:
+    """Execute a query returning a status string, routing through with_actor when task_id is set."""
+    if task_id:
+        async with with_actor("agent", task_id) as conn:
+            return await conn.execute(query, *args)
+    return await get_pool().execute(query, *args)
 
 
 def _build_paragraph_block(text: str) -> dict:
@@ -69,32 +85,18 @@ async def create_node(
 
     parent_uuid = uuid.UUID(parent_id) if parent_id else None
 
-    if task_id:
-        async with with_actor("agent", task_id) as conn:
-            row = await conn.fetchrow("""
-                INSERT INTO nodes (owner_id, parent_id, type, title, properties)
-                VALUES ($1, $2, $3::node_type, $4, $5::jsonb)
-                RETURNING id
-            """,
-                uuid.UUID(owner_id),
-                parent_uuid,
-                node_type,
-                title,
-                json.dumps(props),
-            )
-    else:
-        pool = get_pool()
-        row = await pool.fetchrow("""
-            INSERT INTO nodes (owner_id, parent_id, type, title, properties)
-            VALUES ($1, $2, $3::node_type, $4, $5::jsonb)
-            RETURNING id
-        """,
-            uuid.UUID(owner_id),
-            parent_uuid,
-            node_type,
-            title,
-            json.dumps(props),
-        )
+    row = await _fetchrow("""
+        INSERT INTO nodes (owner_id, parent_id, type, title, properties)
+        VALUES ($1, $2, $3::node_type, $4, $5::jsonb)
+        RETURNING id
+    """,
+        uuid.UUID(owner_id),
+        parent_uuid,
+        node_type,
+        title,
+        json.dumps(props),
+        task_id=task_id,
+    )
 
     if row:
         return f"Created {node_type} \"{title}\" with id={row['id']}"
@@ -121,22 +123,12 @@ async def update_node_properties(
     except json.JSONDecodeError:
         return "Error: properties must be valid JSON."
 
-    if task_id:
-        async with with_actor("agent", task_id) as conn:
-            result = await conn.execute("""
-                UPDATE nodes
-                SET properties = properties || $2::jsonb,
-                    updated_at = now()
-                WHERE id = $1
-            """, uuid.UUID(node_id), json.dumps(props))
-    else:
-        pool = get_pool()
-        result = await pool.execute("""
-            UPDATE nodes
-            SET properties = properties || $2::jsonb,
-                updated_at = now()
-            WHERE id = $1
-        """, uuid.UUID(node_id), json.dumps(props))
+    result = await _execute("""
+        UPDATE nodes
+        SET properties = properties || $2::jsonb,
+            updated_at = now()
+        WHERE id = $1
+    """, uuid.UUID(node_id), json.dumps(props), task_id=task_id)
 
     if result == "UPDATE 1":
         return f"Updated node {node_id} with {props}"
@@ -165,68 +157,37 @@ async def append_text_to_page(
     if not trimmed:
         return "Error: text cannot be empty."
 
-    if task_id:
-        async with with_actor("agent", task_id) as conn:
-            row = await conn.fetchrow(
-                """
-                SELECT content, type::text
-                FROM nodes
-                WHERE id = $1 AND owner_id = $2
-                """,
-                uuid.UUID(node_id),
-                uuid.UUID(owner_id),
-            )
-            if not row:
-                return "Error: page not found or access denied."
+    row = await _fetchrow(
+        """
+        SELECT content, type::text
+        FROM nodes
+        WHERE id = $1 AND owner_id = $2
+        """,
+        uuid.UUID(node_id),
+        uuid.UUID(owner_id),
+        task_id=task_id,
+    )
+    if not row:
+        return "Error: page not found or access denied."
 
-            if row["type"] != "page":
-                return f"Error: node {node_id} is type '{row['type']}', expected 'page'."
+    if row["type"] != "page":
+        return f"Error: node {node_id} is type '{row['type']}', expected 'page'."
 
-            content = row["content"] if isinstance(row["content"], list) else []
-            updated_content = [*content, _build_paragraph_block(trimmed)]
+    content = row["content"] if isinstance(row["content"], list) else []
+    updated_content = [*content, _build_paragraph_block(trimmed)]
 
-            result = await conn.execute(
-                """
-                UPDATE nodes
-                SET content = $2::jsonb,
-                    updated_at = now()
-                WHERE id = $1 AND owner_id = $3
-                """,
-                uuid.UUID(node_id),
-                json.dumps(updated_content),
-                uuid.UUID(owner_id),
-            )
-    else:
-        pool = get_pool()
-        row = await pool.fetchrow(
-            """
-            SELECT content, type::text
-            FROM nodes
-            WHERE id = $1 AND owner_id = $2
-            """,
-            uuid.UUID(node_id),
-            uuid.UUID(owner_id),
-        )
-        if not row:
-            return "Error: page not found or access denied."
-
-        if row["type"] != "page":
-            return f"Error: node {node_id} is type '{row['type']}', expected 'page'."
-
-        content = row["content"] if isinstance(row["content"], list) else []
-        updated_content = [*content, _build_paragraph_block(trimmed)]
-
-        result = await pool.execute(
-            """
-            UPDATE nodes
-            SET content = $2::jsonb,
-                updated_at = now()
-            WHERE id = $1 AND owner_id = $3
-            """,
-            uuid.UUID(node_id),
-            json.dumps(updated_content),
-            uuid.UUID(owner_id),
-        )
+    result = await _execute(
+        """
+        UPDATE nodes
+        SET content = $2::jsonb,
+            updated_at = now()
+        WHERE id = $1 AND owner_id = $3
+        """,
+        uuid.UUID(node_id),
+        json.dumps(updated_content),
+        uuid.UUID(owner_id),
+        task_id=task_id,
+    )
 
     if result == "UPDATE 1":
         return f"Appended text to page {node_id}"

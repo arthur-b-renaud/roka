@@ -7,31 +7,28 @@ import { ensureTeamMembership } from "@/lib/team";
 import { buildDirectMessageKey } from "@/lib/chat";
 
 const createDirectSchema = z.object({
-  otherUserId: z.string().uuid(),
+  otherMemberId: z.string().uuid(),
 });
 
 export const POST = h.mutation(async (data, userId) => {
   const membership = await ensureTeamMembership(userId);
-  if (data.otherUserId === userId) {
-    throw new Error("Invalid direct message user");
-  }
 
-  const [otherMembership] = await db
+  const [otherMember] = await db
     .select({ id: teamMembers.id })
     .from(teamMembers)
     .where(
       and(
         eq(teamMembers.teamId, membership.teamId),
-        eq(teamMembers.userId, data.otherUserId),
+        eq(teamMembers.id, data.otherMemberId),
       ),
     )
     .limit(1);
 
-  if (!otherMembership) {
-    throw new Error("User not found");
+  if (!otherMember) {
+    throw new Error("Member not found");
   }
 
-  const dmKey = buildDirectMessageKey(userId, data.otherUserId);
+  const dmKey = buildDirectMessageKey(membership.memberId, otherMember.id);
 
   const [existing] = await db
     .select({
@@ -83,8 +80,8 @@ export const POST = h.mutation(async (data, userId) => {
   }
 
   await db.insert(chatChannelMembers).values([
-    { channelId: channel.id, userId },
-    { channelId: channel.id, userId: data.otherUserId },
+    { channelId: channel.id, memberId: membership.memberId },
+    { channelId: channel.id, memberId: otherMember.id },
   ]).onConflictDoNothing();
 
   return channel;

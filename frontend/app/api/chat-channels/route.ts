@@ -14,9 +14,10 @@ export const GET = h.GET(async (userId) => {
     .select({ channelId: chatChannelMembers.channelId })
     .from(chatChannelMembers)
     .innerJoin(chatChannels, eq(chatChannels.id, chatChannelMembers.channelId))
+    .innerJoin(teamMembers, eq(teamMembers.id, chatChannelMembers.memberId))
     .where(
       and(
-        eq(chatChannelMembers.userId, userId),
+        eq(teamMembers.userId, userId),
         eq(chatChannels.teamId, membership.teamId),
       ),
     );
@@ -33,34 +34,36 @@ export const GET = h.GET(async (userId) => {
       name: chatChannels.name,
       createdAt: chatChannels.createdAt,
       updatedAt: chatChannels.updatedAt,
-      memberUserId: chatChannelMembers.userId,
-      memberName: users.name,
-      memberEmail: users.email,
+      memberId: chatChannelMembers.memberId,
+      memberDisplayName: teamMembers.displayName,
+      memberKind: teamMembers.kind,
+      memberUserId: teamMembers.userId,
     })
     .from(chatChannels)
     .innerJoin(chatChannelMembers, eq(chatChannelMembers.channelId, chatChannels.id))
-    .innerJoin(users, eq(users.id, chatChannelMembers.userId))
+    .innerJoin(teamMembers, eq(teamMembers.id, chatChannelMembers.memberId))
     .where(and(eq(chatChannels.teamId, membership.teamId), inArray(chatChannels.id, channelIds)))
     .orderBy(asc(chatChannels.kind), asc(chatChannels.name));
 
-  const currentUserId = userId;
   const channelsMap = new Map<string, {
     id: string;
     kind: "channel" | "direct";
     name: string;
     createdAt: Date;
     updatedAt: Date;
-    members: Array<{ userId: string; name: string | null; email: string }>;
+    members: Array<{ memberId: string | null; displayName: string; kind: string; userId: string | null }>;
   }>();
 
   for (const row of rows) {
     const existing = channelsMap.get(row.id);
+    const memberInfo = {
+      memberId: row.memberId,
+      displayName: row.memberDisplayName,
+      kind: row.memberKind,
+      userId: row.memberUserId,
+    };
     if (existing) {
-      existing.members.push({
-        userId: row.memberUserId,
-        name: row.memberName,
-        email: row.memberEmail,
-      });
+      existing.members.push(memberInfo);
       continue;
     }
     channelsMap.set(row.id, {
@@ -69,13 +72,7 @@ export const GET = h.GET(async (userId) => {
       name: row.name ?? "",
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      members: [
-        {
-          userId: row.memberUserId,
-          name: row.memberName,
-          email: row.memberEmail,
-        },
-      ],
+      members: [memberInfo],
     });
   }
 
@@ -94,8 +91,8 @@ export const GET = h.GET(async (userId) => {
       continue;
     }
 
-    const other = c.members.find((m: { userId: string }) => m.userId !== currentUserId);
-    const dmName = other ? (other.name || other.email.split("@")[0]) : "Direct message";
+    const other = c.members.find((m) => m.userId !== userId);
+    const dmName = other ? other.displayName : "Direct message";
     directs.push({
       id: c.id,
       kind: c.kind,
@@ -140,16 +137,17 @@ export const POST = h.mutation(async (data, userId) => {
     throw new Error("Channel already exists");
   }
 
+  // Add all human team members to the new channel
   const members = await db
-    .select({ userId: teamMembers.userId })
+    .select({ id: teamMembers.id })
     .from(teamMembers)
-    .where(eq(teamMembers.teamId, membership.teamId));
+    .where(and(eq(teamMembers.teamId, membership.teamId), eq(teamMembers.kind, "human")));
 
   if (members.length > 0) {
     await db.insert(chatChannelMembers).values(
       members.map((m) => ({
         channelId: created.id,
-        userId: m.userId,
+        memberId: m.id,
       })),
     ).onConflictDoNothing();
   }

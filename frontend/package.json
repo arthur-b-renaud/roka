@@ -41,6 +41,7 @@
     "drizzle-orm": "^0.45.1",
     "jose": "^5.9.6",
     "lucide-react": "^0.468.0",
+    "nanoid": "^5.1.6",
     "next": "14.2.21",
     "next-auth": "^5.0.0-beta.30",
     "postgres": "^3.4.8",

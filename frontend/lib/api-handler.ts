@@ -1,13 +1,45 @@
 /**
  * Strict API handler factory — enforces auth + Zod validation on every route.
  * Wraps Next.js App Router handlers to inject userId, parse body, pass route params.
+ * Optionally resolves team_members permissions for the caller.
  */
 
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import type { ZodSchema } from "zod";
+import { z, type ZodSchema } from "zod";
+import { db } from "@/lib/db";
+import { teamMembers } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+
+/** Reusable Zod schema for route params containing a single UUID `id`. */
+export const uuidParamSchema = z.object({
+  id: z.string().uuid("Invalid id"),
+});
+
+/** Parse `limit` and optional `cursor` from a request URL's search params. */
+export function parsePagination(
+  req: Request,
+  defaults: { limit?: number; maxLimit?: number } = {},
+): { limit: number; cursor: string | null } {
+  const url = new URL(req.url);
+  const { limit: defaultLimit = 50, maxLimit = 200 } = defaults;
+  const limit = Math.min(
+    parseInt(url.searchParams.get("limit") ?? String(defaultLimit), 10) || defaultLimit,
+    maxLimit,
+  );
+  const cursor = url.searchParams.get("cursor");
+  return { limit, cursor };
+}
 
 export type RouteContext = { params: Record<string, string> };
+
+export type MemberPermissions = {
+  memberId: string;
+  kind: "human" | "ai";
+  pageAccess: "all" | "selected";
+  allowedNodeIds: string[];
+  canWrite: boolean;
+};
 
 type GetHandlerFn = (
   userId: string,
@@ -43,6 +75,34 @@ function errorResponse(e: unknown): NextResponse {
     }
   }
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+}
+
+/**
+ * Resolve the calling user's team_members permissions.
+ * Returns null if the user has no membership yet (bootstrap will create one).
+ */
+export async function getMemberPermissions(userId: string): Promise<MemberPermissions | null> {
+  const [row] = await db
+    .select({
+      id: teamMembers.id,
+      kind: teamMembers.kind,
+      pageAccess: teamMembers.pageAccess,
+      allowedNodeIds: teamMembers.allowedNodeIds,
+      canWrite: teamMembers.canWrite,
+    })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, userId))
+    .limit(1);
+
+  if (!row) return null;
+
+  return {
+    memberId: row.id,
+    kind: row.kind,
+    pageAccess: row.pageAccess,
+    allowedNodeIds: (row.allowedNodeIds ?? []) as string[],
+    canWrite: row.canWrite,
+  };
 }
 
 /** Authenticated GET handler. */
@@ -100,10 +160,10 @@ export function mutation<T = void>(
 }
 
 /** Public GET handler (no auth required). */
-export function publicGET(handler: (req: Request) => Promise<unknown>) {
-  return async (req: Request) => {
+export function publicGET(handler: (req: Request, ctx: RouteContext) => Promise<unknown>) {
+  return async (req: Request, ctx: RouteContext = { params: {} }) => {
     try {
-      const result = await handler(req);
+      const result = await handler(req, ctx);
       return NextResponse.json(result ?? { ok: true });
     } catch (e) {
       return errorResponse(e);

@@ -34,6 +34,7 @@ import {
   Wrench,
   Activity,
   MessageCircle,
+  Users,
 } from "lucide-react";
 import type { DbNode } from "@/lib/types/database";
 
@@ -55,6 +56,18 @@ export function Sidebar() {
         type: "page,database",
         parentId: "null",
         orderBy: "sort_order",
+      });
+    },
+    enabled: !!userId,
+  });
+
+  const { data: sharedPages = [] } = useQuery<DbNode[]>({
+    queryKey: ["sidebar-shared-pages", userId],
+    queryFn: async () => {
+      if (!userId) return [];
+      return api.nodes.list({
+        type: "page,database",
+        shared: "true",
       });
     },
     enabled: !!userId,
@@ -150,11 +163,11 @@ export function Sidebar() {
       </div>
       <nav className="space-y-0.5 px-2 pb-1">
         <button
-          onClick={() => router.push("/workspace/agents")}
+          onClick={() => router.push("/workspace/team")}
           className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
         >
-          <Bot className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
-          Agents
+          <Users className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Team
         </button>
         <button
           onClick={() => router.push("/workspace/tools")}
@@ -215,6 +228,18 @@ export function Sidebar() {
           {/* Page tree */}
           <ScrollArea className="flex-1 px-2">
             <WorkspaceTree pages={pages} />
+
+            {sharedPages.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 px-1 pt-4 pb-1">
+                  <Users className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Shared with me
+                  </span>
+                </div>
+                <WorkspaceTree pages={sharedPages} />
+              </>
+            )}
           </ScrollArea>
         </>
       )}

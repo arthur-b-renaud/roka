@@ -1,20 +1,16 @@
 import * as h from "@/lib/api-handler";
+import { uuidParamSchema } from "@/lib/api-handler";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { chatChannelAgents, agentDefinitions } from "@/lib/db/schema";
+import { chatChannelMembers, teamMembers } from "@/lib/db/schema";
 import { assertChannelMembership } from "@/lib/chat";
 
-const channelIdParamSchema = z.object({
-  id: z.string().uuid("Invalid channel id"),
-});
-
-const agentInputSchema = z.object({
-  agentDefinitionId: z.string().uuid("Invalid agent id"),
-});
+// Agents in a channel are now AI team members added via chat_channel_members.
+// This route provides a filtered view of AI members only.
 
 export const GET = h.GET(async (userId, _req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }
@@ -23,48 +19,54 @@ export const GET = h.GET(async (userId, _req, ctx) => {
 
   const rows = await db
     .select({
-      id: chatChannelAgents.id,
-      agentDefinitionId: chatChannelAgents.agentDefinitionId,
-      name: agentDefinitions.name,
-      description: agentDefinitions.description,
-      createdAt: chatChannelAgents.createdAt,
+      id: chatChannelMembers.id,
+      memberId: chatChannelMembers.memberId,
+      displayName: teamMembers.displayName,
+      description: teamMembers.description,
+      createdAt: chatChannelMembers.createdAt,
     })
-    .from(chatChannelAgents)
-    .innerJoin(agentDefinitions, eq(agentDefinitions.id, chatChannelAgents.agentDefinitionId))
-    .where(eq(chatChannelAgents.channelId, channelId));
+    .from(chatChannelMembers)
+    .innerJoin(teamMembers, and(
+      eq(teamMembers.id, chatChannelMembers.memberId),
+      eq(teamMembers.kind, "ai"),
+    ))
+    .where(eq(chatChannelMembers.channelId, channelId));
 
   return rows;
 });
 
+const addAgentSchema = z.object({
+  memberId: z.string().uuid("Invalid member id"),
+});
+
 export const POST = h.mutation(async (data, userId, _req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }
   const channelId = params.data.id;
   await assertChannelMembership(channelId, userId);
 
-  const [agentDef] = await db
-    .select({ id: agentDefinitions.id })
-    .from(agentDefinitions)
-    .where(eq(agentDefinitions.id, data.agentDefinitionId))
+  const [aiMember] = await db
+    .select({ id: teamMembers.id })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.id, data.memberId), eq(teamMembers.kind, "ai")))
     .limit(1);
 
-  if (!agentDef) {
-    throw new Error("Agent not found");
+  if (!aiMember) {
+    throw new Error("AI member not found");
   }
 
   const [created] = await db
-    .insert(chatChannelAgents)
+    .insert(chatChannelMembers)
     .values({
       channelId,
-      agentDefinitionId: data.agentDefinitionId,
-      addedBy: userId,
+      memberId: data.memberId,
     })
     .onConflictDoNothing()
     .returning({
-      id: chatChannelAgents.id,
-      agentDefinitionId: chatChannelAgents.agentDefinitionId,
+      id: chatChannelMembers.id,
+      memberId: chatChannelMembers.memberId,
     });
 
   if (!created) {
@@ -72,10 +74,14 @@ export const POST = h.mutation(async (data, userId, _req, ctx) => {
   }
 
   return created;
-}, { schema: agentInputSchema });
+}, { schema: addAgentSchema });
+
+const removeAgentSchema = z.object({
+  memberId: z.string().uuid("Invalid member id"),
+});
 
 export const DELETE = h.mutation(async (data, userId, _req, ctx) => {
-  const params = channelIdParamSchema.safeParse(ctx.params);
+  const params = uuidParamSchema.safeParse(ctx.params);
   if (!params.success) {
     throw new Error(params.error.issues[0]?.message ?? "Invalid channel id");
   }
@@ -83,18 +89,18 @@ export const DELETE = h.mutation(async (data, userId, _req, ctx) => {
   await assertChannelMembership(channelId, userId);
 
   const [removed] = await db
-    .delete(chatChannelAgents)
+    .delete(chatChannelMembers)
     .where(
       and(
-        eq(chatChannelAgents.channelId, channelId),
-        eq(chatChannelAgents.agentDefinitionId, data.agentDefinitionId),
+        eq(chatChannelMembers.channelId, channelId),
+        eq(chatChannelMembers.memberId, data.memberId),
       ),
     )
-    .returning({ id: chatChannelAgents.id });
+    .returning({ id: chatChannelMembers.id });
 
   if (!removed) {
     throw new Error("Agent not found in this channel");
   }
 
   return removed;
-}, { schema: agentInputSchema });
+}, { schema: removeAgentSchema });
