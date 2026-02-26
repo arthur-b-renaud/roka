@@ -111,7 +111,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Nav actions */}
+      {/* Primary nav */}
       <nav className="space-y-0.5 px-2 pb-1">
         <button
           onClick={openSearch}
@@ -131,6 +131,25 @@ export function Sidebar() {
           Home
         </button>
         <button
+          onClick={() => router.push("/workspace/chat")}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60",
+            isOnChat && "bg-accent/60 font-medium"
+          )}
+        >
+          <MessageCircle className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
+          Chat
+        </button>
+      </nav>
+
+      {/* Configure section */}
+      <div className="px-3 pt-3 pb-1">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Configure
+        </span>
+      </div>
+      <nav className="space-y-0.5 px-2 pb-1">
+        <button
           onClick={() => router.push("/workspace/agents")}
           className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
         >
@@ -149,17 +168,7 @@ export function Sidebar() {
           className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60"
         >
           <Activity className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
-          Executions
-        </button>
-        <button
-          onClick={() => router.push("/workspace/chat")}
-          className={cn(
-            "flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-[hsl(var(--sidebar-foreground))] transition-colors duration-150 hover:bg-accent/60",
-            isOnChat && "bg-accent/60 font-medium"
-          )}
-        >
-          <MessageCircle className="h-[15px] w-[15px] shrink-0 text-[hsl(var(--sidebar-muted))]" />
-          Chat
+          Monitor
         </button>
         <button
           onClick={() => router.push("/workspace/settings")}

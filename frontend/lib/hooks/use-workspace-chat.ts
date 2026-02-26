@@ -82,13 +82,14 @@ export function useCreateWorkspaceDirect() {
 export function useSendWorkspaceChatMessage(
   channelId: string | null,
   userId?: string | null,
+  nodeId?: string,
 ) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (content: string) => {
       if (!channelId) throw new Error("No active channel selected");
-      return api.chatChannels.sendMessage(channelId, content);
+      return api.chatChannels.sendMessage(channelId, content, nodeId);
     },
     onMutate: async (content) => {
       if (!channelId) return { previous: undefined as DbChatMessage[] | undefined };

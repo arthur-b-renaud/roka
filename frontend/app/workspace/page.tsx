@@ -1,31 +1,22 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/lib/hooks/use-current-user";
 import { useRecentPages, usePinnedPages } from "@/lib/queries/nodes";
 import { useSetupComplete } from "@/lib/hooks/use-app-settings";
-import { ChatPanel } from "@/components/chat/chat-panel";
 import { ActivityFeed } from "@/components/activity/activity-feed";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   FileText,
   Database,
   Clock,
   Pin,
   Bot,
-  Sparkles,
-  GitBranch,
+  MessageCircle,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { useCreateAgentTask } from "@/lib/queries/nodes";
 import { nodeUrl } from "@/lib/slug";
 import type { DbNode } from "@/lib/types/database";
 
@@ -35,7 +26,6 @@ export default function WorkspacePage() {
 
   const { data: recentPages = [], isLoading: loadingRecent } = useRecentPages(userId);
   const { data: pinnedPages = [] } = usePinnedPages(userId);
-  const createAgentTask = useCreateAgentTask();
   const { llmConfigured } = useSetupComplete();
 
   return (
@@ -44,68 +34,16 @@ export default function WorkspacePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
       </div>
 
-      {/* Chat Panel -- replaces the old single-line prompt */}
-      {llmConfigured && <ChatPanel />}
-
-      {/* Quick actions */}
-      <TooltipProvider>
-        <div className="flex gap-3">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    if (recentPages[0]) {
-                      createAgentTask.mutate({
-                        workflow: "summarize",
-                        nodeId: recentPages[0].id,
-                      });
-                    }
-                  }}
-                  disabled={recentPages.length === 0 || !llmConfigured}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Summarize Latest Page
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {!llmConfigured && (
-              <TooltipContent>
-                <p>Configure your LLM in Settings first</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    if (recentPages[0]) {
-                      createAgentTask.mutate({
-                        workflow: "triage",
-                        nodeId: recentPages[0].id,
-                      });
-                    }
-                  }}
-                  disabled={recentPages.length === 0 || !llmConfigured}
-                >
-                  <GitBranch className="h-4 w-4" />
-                  Smart Triage Latest
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {!llmConfigured && (
-              <TooltipContent>
-                <p>Configure your LLM in Settings first</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      {llmConfigured && (
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => router.push("/workspace/chat")}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Open Chat
+        </Button>
+      )}
 
       {/* Pinned pages */}
       {pinnedPages.length > 0 && (

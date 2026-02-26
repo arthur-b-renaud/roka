@@ -190,11 +190,11 @@ export const api = {
       if (cursor) params.set("cursor", cursor);
       return fetch(`/api/chat-channels/${channelId}/messages?${params}`).then(handleResponse);
     },
-    sendMessage: (channelId: string, content: string) =>
+    sendMessage: (channelId: string, content: string, nodeId?: string) =>
       fetch(`/api/chat-channels/${channelId}/messages`, {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, ...(nodeId ? { nodeId } : {}) }),
       }).then(handleResponse),
     members: (channelId: string) =>
       fetch(`/api/chat-channels/${channelId}/members`).then(handleResponse),

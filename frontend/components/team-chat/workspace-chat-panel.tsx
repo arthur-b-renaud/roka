@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   Bot,
+  FileText,
   Hash,
   Loader2,
   MessageCircle,
@@ -13,6 +14,7 @@ import {
   UserMinus,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -84,9 +86,10 @@ function ChatMessage({ msg, isOwn }: { msg: DbChatMessage; isOwn: boolean }) {
 
 interface WorkspaceChatPanelProps {
   channelId: string;
+  nodeId?: string;
 }
 
-export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
+export function WorkspaceChatPanel({ channelId, nodeId: initialNodeId }: WorkspaceChatPanelProps) {
   const { userId } = useCurrentUser();
   const { toast } = useToast();
   const { data: teamMembers = [] } = useTeamMembers();
@@ -97,6 +100,7 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
   const [message, setMessage] = useState("");
   const [newMemberId, setNewMemberId] = useState("");
   const [newAgentId, setNewAgentId] = useState("");
+  const [pageContext, setPageContext] = useState<string | undefined>(initialNodeId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevChannelRef = useRef<string | null>(null);
@@ -116,7 +120,7 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
     staleTime: 30_000,
   });
 
-  const sendMessage = useSendWorkspaceChatMessage(channelId, userId);
+  const sendMessage = useSendWorkspaceChatMessage(channelId, userId, pageContext);
   const addMember = useAddWorkspaceChatChannelMember(channelId);
   const removeMember = useRemoveWorkspaceChatChannelMember(channelId);
   const addAgent = useAddWorkspaceChatChannelAgent(channelId);
@@ -424,8 +428,23 @@ export function WorkspaceChatPanel({ channelId }: WorkspaceChatPanelProps) {
         <div ref={endRef} />
       </div>
 
+      {/* Page context banner */}
+      {pageContext && (
+        <div className="flex items-center gap-2 border-t bg-accent/30 px-4 py-2 text-xs text-muted-foreground">
+          <FileText className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Page context attached</span>
+          <button
+            onClick={() => setPageContext(undefined)}
+            className="ml-auto shrink-0 rounded p-0.5 hover:bg-accent"
+            aria-label="Remove page context"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+
       {/* Composer */}
-      <div className="border-t px-4 py-3">
+      <div className={`border-t px-4 py-3 ${pageContext ? "border-t-0" : ""}`}>
         <div className="flex gap-2">
           <Input
             value={message}

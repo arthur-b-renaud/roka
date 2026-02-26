@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MessageCircle } from "lucide-react";
 import { useWorkspaceChatChannels } from "@/lib/hooks/use-workspace-chat";
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nodeId = searchParams.get("nodeId");
   const { data, isLoading } = useWorkspaceChatChannels();
 
   const target =
@@ -18,9 +20,10 @@ export default function ChatPage() {
   useEffect(() => {
     if (isLoading || !data) return;
     if (target) {
-      router.replace(`/workspace/chat/${target}`);
+      const qs = nodeId ? `?nodeId=${nodeId}` : "";
+      router.replace(`/workspace/chat/${target}${qs}`);
     }
-  }, [data, isLoading, target, router]);
+  }, [data, isLoading, target, router, nodeId]);
 
   if (isLoading || target) {
     return (

@@ -82,10 +82,10 @@ export default function ExecutionsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Activity className="h-6 w-6" />
-            Executions
+            Monitor
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Audit agent task executions, tool calls, and reasoning traces
+            Observe agent runs, tool usage, and performance
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">

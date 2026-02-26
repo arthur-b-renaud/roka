@@ -57,6 +57,7 @@ export const GET = h.GET(async (userId, req, ctx) => {
 
 const sendSchema = z.object({
   content: z.string().min(1).max(4000),
+  nodeId: z.string().uuid().optional(),
 });
 
 export const POST = h.mutation(async (data, userId, _req, ctx) => {
@@ -95,10 +96,12 @@ export const POST = h.mutation(async (data, userId, _req, ctx) => {
       workflow: "agent",
       status: "pending",
       agentDefinitionId: agent.agentDefinitionId,
+      nodeId: data.nodeId ?? null,
       input: {
         prompt: data.content,
         channel_id: channelId,
         triggering_user_id: userId,
+        ...(data.nodeId ? { node_id: data.nodeId } : {}),
       },
     });
   }

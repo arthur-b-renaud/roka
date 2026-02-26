@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/editor/page-header";
 import { Breadcrumbs } from "@/components/editor/breadcrumbs";
 import { EditorErrorBoundary } from "@/components/editor/error-boundary";
-import { ChatPanel } from "@/components/chat/chat-panel";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MessageCircle } from "lucide-react";
 
 const PageEditor = dynamic(
   () => import("@/components/editor/page-editor").then((m) => ({ default: m.PageEditor })),
@@ -32,6 +33,7 @@ import { parseNodeId } from "@/lib/slug";
 
 export default function NodePage() {
   const params = useParams();
+  const router = useRouter();
   const rawSlug = params.slug as string;
   const nodeId = parseNodeId(rawSlug) ?? "";
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -81,7 +83,15 @@ export default function NodePage() {
             <PageHeader node={node} onOpenHistory={() => setHistoryOpen(true)} />
             <PageEditor key={node.id} node={node} />
             <div className="mt-6">
-              <ChatPanel nodeId={node.id} minimalMode />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => router.push(`/workspace/chat?nodeId=${node.id}`)}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Ask agent about this page
+              </Button>
             </div>
           </>
         )}
