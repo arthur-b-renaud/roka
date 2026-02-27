@@ -30,15 +30,16 @@ export async function GET(
   }
   const baseUrl = process.env.NEXTAUTH_URL || request.nextUrl.origin;
   const redirectUri = `${baseUrl}/api/oauth/${provider}/callback`;
-  const backendUrl = process.env.BACKEND_URL || "http://localhost:8100";
-  const res = await fetch(`${backendUrl}/api/oauth/exchange`, {
+  const res = await fetch(`${baseUrl}/api/oauth/exchange`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      cookie: request.headers.get("cookie") || "",
+    },
     body: JSON.stringify({
       provider: provider.toLowerCase(),
       code,
       redirect_uri: redirectUri,
-      user_id: session.user.id,
       state,
     }),
   });

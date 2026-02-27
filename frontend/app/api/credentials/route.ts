@@ -29,42 +29,24 @@ const createSchema = z.object({
   config: z.record(z.string()),
 });
 
-// POST /api/credentials -- create (config encrypted server-side via backend)
+// POST /api/credentials -- create (config encrypted via vault)
 export const POST = h.mutation(async (data, userId) => {
-  // Encrypt the config using the backend vault
-  const backendUrl = process.env.BACKEND_URL || "http://localhost:8100";
-  const res = await fetch(`${backendUrl}/api/webhooks/encrypt-credential`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, owner_id: userId }),
+  const { createCredential } = await import("@/lib/vault");
+  const credential = await createCredential(db, {
+    ownerId: userId,
+    name: data.name,
+    service: data.service,
+    type: data.type,
+    config: data.config as Record<string, unknown>,
   });
-
-  if (!res.ok) {
-    // Fallback: store config as JSON bytes directly if backend not available
-    // In production, the vault key must be shared or encryption happens at backend
-    const configBytes = Buffer.from(JSON.stringify(data.config), "utf-8");
-    const [row] = await db
-      .insert(credentials)
-      .values({
-        ownerId: userId,
-        name: data.name,
-        service: data.service,
-        type: data.type,
-        configEncrypted: configBytes.toString("base64"),
-      })
-      .returning({
-        id: credentials.id,
-        name: credentials.name,
-        service: credentials.service,
-        type: credentials.type,
-        isActive: credentials.isActive,
-        createdAt: credentials.createdAt,
-      });
-    return row;
-  }
-
-  const result = await res.json();
-  return result;
+  return {
+    id: credential.id,
+    name: credential.name,
+    service: credential.service,
+    type: credential.type,
+    isActive: credential.isActive,
+    createdAt: credential.createdAt,
+  };
 }, { schema: createSchema });
 
 const deleteSchema = z.object({
