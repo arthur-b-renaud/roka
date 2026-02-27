@@ -69,7 +69,7 @@ export const createMemberSchema = z.object({
   triggerConfig: z.record(z.unknown()).default({}),
 });
 
-export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+export type CreateMemberInput = z.input<typeof createMemberSchema>;
 
 export const updateMemberSchema = z.object({
   displayName: z.string().min(1).optional(),
